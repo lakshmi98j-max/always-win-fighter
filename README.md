@@ -39,6 +39,11 @@ bigger arena.
 
 ### The fighters
 
+This copy ships with real photos on both fighters (`assets/faces/hero.png` and
+`assets/faces/challenger.png`, wired up in `assets/faces/faces.js`). Delete those two lines or set
+them to `null` to go back to the drawn faces.
+
+
 - **The Hero** (player 1): short tousled black hair, a trimmed beard, thick brows, a red headband,
   hand wraps and a charcoal jacket over a blue tee. Record 999 - 0.
 - **The Challenger** (computer): long hair, fingerless gloves, trained for years, trips a lot.

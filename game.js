@@ -352,11 +352,11 @@ function strokeLine(ctx, x1, y1, x2, y2, width, color) {
 function drawDefaultFace(ctx, size, who, expr) {
   const u = size / 256;
   const hero = who === 'hero';
-  const skin = hero ? '#c98f62' : '#e8b48a';
-  const shade = hero ? '#9a6540' : '#bf8560';
-  const deep = hero ? '#6e4328' : '#9a6346';
+  const skin = hero ? '#c98f62' : '#b97a52';
+  const shade = hero ? '#9a6540' : '#8a5636';
+  const deep = hero ? '#6e4328' : '#5e3a22';
   const ink = '#2a1b2e';
-  const iris = hero ? '#4a2c16' : '#3c8f5e';
+  const iris = hero ? '#4a2c16' : '#3a2214';
   const lipCol = hero ? '#b8695c' : '#c9284f';
 
   ctx.save();
@@ -467,7 +467,7 @@ function drawDefaultFace(ctx, size, who, expr) {
     else if (expr === 'tired') { inner = -3; outerLift = 7; }
     else if (expr === 'dizzy') { inner = -5; outerLift = 3; }
     else if (hero) { inner = 2; }
-    ctx.lineCap = 'round'; ctx.strokeStyle = hero ? '#1d1511' : '#5a1e2b';
+    ctx.lineCap = 'round'; ctx.strokeStyle = hero ? '#1d1511' : '#20150f';
     ctx.lineWidth = hero ? 7.5 : 3.5;
     ctx.beginPath();
     ctx.moveTo(x - outer * 20, browY + inner);
@@ -943,9 +943,9 @@ const STYLES = {
     armW: [15, 12, 9], legW: [18, 13, 10], fistW: 15, hairStyle: 'short',
   },
   challenger: {
-    skin: '#e8b48a', skinShade: '#bf8560', ink: '#3d2a24',
-    top: '#8e2de2', topShade: '#5f179c', topTrim: '#ffd166', pants: '#1b1b2f', pantsShade: '#0e0e1c',
-    belt: '#ffd166', glove: '#c026d3', wrap: '#ffd166', shoe: '#3b0764', shoeTrim: '#d8b4fe', hair: '#7a1b36', band: '#ffd166',
+    skin: '#b97a52', skinShade: '#8a5636', ink: '#2e2420',
+    top: '#23232a', topShade: '#101014', topTrim: '#d4a93c', pants: '#2a2a33', pantsShade: '#15151b',
+    belt: '#d4a93c', glove: '#8b1e3f', wrap: '#d4a93c', shoe: '#1a1a22', shoeTrim: '#d4a93c', hair: '#15100f', band: '#d4a93c',
     torsoW: 31, waistW: 21, hipW: 31, torsoLen: 57, neck: 11, headR: 17,
     upperArm: 28, foreArm: 27, thigh: 42, shin: 41,
     armW: [12, 9, 7], legW: [15, 11, 8], fistW: 12, hairStyle: 'long',
@@ -1180,7 +1180,13 @@ function drawTorso(ctx, st, sk, cy, sy) {
     ctx.moveTo(lerp(topMid.x, tl.x, 0.3), lerp(topMid.y, tl.y, 0.3) + 4); ctx.lineTo(lerp(topMid.x, tl.x, 0.55), lerp(topMid.y, tl.y, 0.55) - 7);   // collar
     ctx.moveTo(lerp(topMid.x, tr.x, 0.3), lerp(topMid.y, tr.y, 0.3) + 4); ctx.lineTo(lerp(topMid.x, tr.x, 0.55), lerp(topMid.y, tr.y, 0.55) - 7);
   } else {
-    ctx.moveTo(lerp(topMid.x, tr.x, 0.75), lerp(topMid.y, tr.y, 0.75) + 4); ctx.lineTo(lerp(bl.x, topMid.x, 0.3), -2);
+    ctx.stroke();
+    ctx.fillStyle = st.topTrim; ctx.strokeStyle = st.ink; ctx.lineWidth = 1;
+    for (let i = 0; i < 3; i++) {                                   // a column of gold buttons
+      const by = lerp(topMid.y + 14, -6, i / 2.5), bx = lerp(topMid.x, (bl.x + br.x) / 2, i / 2.5) + cy * 6;
+      ctx.beginPath(); ctx.arc(bx, by, 2.6, 0, TAU); ctx.fill(); ctx.stroke();
+    }
+    ctx.beginPath();
   }
   ctx.stroke();
   // belt across the hips
@@ -1207,7 +1213,7 @@ function drawHair(ctx, st, R, f) {
     // short hair swept back: a mass above and behind the head with a few tufts
     ctx.strokeStyle = st.ink; ctx.lineWidth = 2; ctx.fillStyle = st.hair;
     ctx.beginPath(); ctx.ellipse(-3, -6, R + 6, R * 1.02, -0.15, 0, TAU); ctx.fill(); ctx.stroke();
-    for (let i = 0; i < 7; i++) {                                  // tousled tufts across the top
+    for (let i = 0; i < (f.photoFace ? 0 : 7); i++) {              // tousled tufts across the top (a photo brings its own hair)
       const a = Math.PI * 1.02 + i * 0.16, len = R + 5 + (i % 3) * 2;
       ctx.beginPath();
       ctx.moveTo(Math.cos(a - 0.08) * (R + 3), Math.sin(a - 0.08) * (R + 3));
@@ -1220,10 +1226,12 @@ function drawHair(ctx, st, R, f) {
     const sw = Math.sin(t * 4) * 3 - (f.vx || 0) * 0.03;
     ctx.beginPath();
     ctx.moveTo(-R * 0.2, -R - 2);
-    ctx.quadraticCurveTo(-R - 8, -R * 0.6, -R - 10 + sw, R * 0.9);
-    ctx.quadraticCurveTo(-R - 12 + sw * 1.5, R * 1.9, -R * 0.3 + sw, R * 2.1);
-    ctx.quadraticCurveTo(R * 0.4 + sw, R * 2.2, R * 0.9 + sw * 0.5, R * 1.6);
-    ctx.quadraticCurveTo(R + 6, R * 0.4, R * 0.6, -R * 0.9);
+    ctx.quadraticCurveTo(-R - 10, -R * 0.6, -R - 8 + sw, R * 0.3);
+    ctx.quadraticCurveTo(-R - 16 + sw, R * 0.9, -R - 9 + sw, R * 1.3);
+    ctx.quadraticCurveTo(-R - 15 + sw * 1.5, R * 1.9, -R * 0.4 + sw, R * 2.25);
+    ctx.quadraticCurveTo(R * 0.5 + sw, R * 2.35, R * 1.0 + sw * 0.5, R * 1.7);
+    ctx.quadraticCurveTo(R * 1.3, R * 1.1, R * 1.05, R * 0.5);
+    ctx.quadraticCurveTo(R + 8, -R * 0.3, R * 0.6, -R * 0.95);
     ctx.closePath(); ctx.fill(); ctx.stroke();
     // strands
     ctx.lineCap = 'round'; ctx.lineWidth = 2; ctx.strokeStyle = st.ink; ctx.globalAlpha = 0.45;
@@ -1470,6 +1478,7 @@ class Fighter {
     this.pose = scaleLegs(this.rawPose);
     this.skel = computeSkeleton(this.pose, this.style);
     this.face = FaceStore.get(this.id, this.currentExpression());
+    this.photoFace = FaceStore.hasCustom(this.id);
 
     // the white "damage just taken" part of the health bar catches up slowly
     this.displayHp += (this.hp - this.displayHp) * Math.min(1, dt * 3);
@@ -2361,7 +2370,7 @@ class Game {
 
   drawFighterPreview(ctx, f, x, feetY, scale, pose, facing) {
     const sp = scaleLegs(pose);
-    const view = { style: f.style, pose: sp, skel: computeSkeleton(sp, f.style), facing, face: FaceStore.get(f.id, 'normal'), animT: this.time, vx: 0 };
+    const view = { style: f.style, pose: sp, skel: computeSkeleton(sp, f.style), facing, face: FaceStore.get(f.id, 'normal'), photoFace: FaceStore.hasCustom(f.id), animT: this.time, vx: 0 };
     ctx.save(); ctx.translate(x, feetY); ctx.scale(scale, scale);
     renderFighter(ctx, view);
     ctx.restore();
