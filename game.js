@@ -178,7 +178,15 @@ const Sound = (() => {
         tone({ type: 'triangle', f0: f / 2, dur: 0.2, vol: 0.15, delay: i * 0.11 });
       });
     },
-    dance()  {
+    beat()   {
+      // a bouncy 4/4 bar: kick on the beat, snare-ish noise on 2 and 4, hats on the eighths (8 eighths of 0.3 s)
+      const e = 0.3;
+      for (const i of [0, 2, 4, 6]) tone({ f0: 150, f1: 45, dur: 0.18, vol: 0.4, delay: i * e });
+      for (const i of [2, 6]) noise({ dur: 0.12, vol: 0.25, f0: 1800, f1: 600, q: 0.6, delay: i * e });
+      for (let i = 0; i < 8; i++) noise({ dur: 0.03, vol: 0.06, type: 'highpass', f0: 7000, delay: i * e });
+      [523, 659, 784, 659].forEach((f, i) => tone({ type: 'square', f0: f, dur: 0.12, vol: 0.07, delay: i * 2 * e + e }));
+    },
+    clave()  {
       // one bar of 3-2 son clave on a woodblock, with a tumbao-ish bass underneath (16 eighths of 0.15 s)
       const e = 0.15;
       for (const i of [0, 3, 6, 10, 12]) tone({ type: 'square', f0: 1900, f1: 1300, dur: 0.035, vol: 0.14, delay: i * e });
@@ -642,33 +650,14 @@ const CLIPS = {
     const b = Math.sin(t * 8);
     return stand(72, 14, -16, { lean: -0.08 + b * 0.03, headTilt: -0.1 + b * 0.08, armF: { s: 0.55, e: 2.5 }, armB: { s: 0.55, e: 2.5 } });
   },
-  /**
-   * The victory dance: a quick fist pump, then a small salsa. The hips sway
-   * forward and back against planted feet (Cuban motion) while the torso
-   * counter-leans so the head stays put, with a quick-quick-slow basic step,
-   * bent arms swinging opposite the hips, and a hand "shine" every few bars.
-   */
-  victory(t) {
+  /** The victory dance: a quick fist pump, then the routine chosen in DANCES (see game.dance). */
+  victory(t, f) {
     if (t < 0.8) {                                            // one fist pump
       const k = smooth(Math.min(1, t / 0.25));
       return stand(72, 14, -14, { lean: -0.08 * k, headTilt: -0.2 * k, armF: { s: 1.15 + 1.75 * k, e: 1.95 - 1.8 * k }, armB: { s: 0.85, e: 2.1 } });
     }
-    const u = t - 0.8;
-    const sway = Math.sin(u * TAU / 0.6);                     // hips: one sway per two beats
-    const hipShift = 9 * sway;                                // hips forward / back, feet stay planted
-    const hipH = 70 + 1.5 * Math.abs(sway) + 0.8 * Math.sin(u * TAU / 0.3);
-    const step = Math.sin(u * TAU / 1.2);                     // basic step: forward, back
-    const stepVel = Math.cos(u * TAU / 1.2);                  // feet lift a little while they move
-    const shine = (u % 4.8) > 3.9 ? smooth(Math.min(1, ((u % 4.8) - 3.9) / 0.2)) : 0;
-    return {
-      hipH, bodyAngle: 0,
-      lean: -0.13 * sway + 0.03 * shine,
-      headTilt: 0.09 * sway - 0.12 * shine,
-      armF: shine ? { s: lerp(0.95 + 0.45 * sway, 2.55, shine), e: lerp(1.9, 0.35, shine) } : { s: 0.95 + 0.45 * sway, e: 1.9 },
-      armB: { s: 0.95 - 0.45 * sway, e: 1.9 },
-      footF: { x: 14 + 9 * step - hipShift, y: hipH - 4 * Math.max(0, stepVel) },
-      footB: { x: -16 - 9 * step - hipShift, y: hipH - 4 * Math.max(0, -stepVel) },
-    };
+    const dance = DANCES[f.game ? f.game.dance : 'salsa'] || DANCES.salsa;
+    return dance.clip(t - 0.8);
   },
   tired(t) {
     const b = Math.sin(t * 9);
@@ -691,6 +680,100 @@ const CLIPS = {
     return p;
   },
   sneeze: SNEEZE_KF,
+};
+
+
+/* ----- victory dances: each is a clip of time since the dance started ------ */
+const DANCES = {
+  salsa: {
+    label: 'Salsa', sound: 'clave', bar: 2.4,
+    /** Cuban motion: hips sway against planted feet, torso counter-leans, quick-quick-slow step. */
+    clip(u) {
+      const sway = Math.sin(u * TAU / 0.6);
+      const hipShift = 9 * sway;
+      const hipH = 70 + 1.5 * Math.abs(sway) + 0.8 * Math.sin(u * TAU / 0.3);
+      const step = Math.sin(u * TAU / 1.2), stepVel = Math.cos(u * TAU / 1.2);
+      const shine = (u % 4.8) > 3.9 ? smooth(Math.min(1, ((u % 4.8) - 3.9) / 0.2)) : 0;
+      return {
+        hipH, bodyAngle: 0,
+        lean: -0.13 * sway + 0.03 * shine,
+        headTilt: 0.09 * sway - 0.12 * shine,
+        armF: shine ? { s: lerp(0.95 + 0.45 * sway, 2.55, shine), e: lerp(1.9, 0.35, shine) } : { s: 0.95 + 0.45 * sway, e: 1.9 },
+        armB: { s: 0.95 - 0.45 * sway, e: 1.9 },
+        footF: { x: 14 + 9 * step - hipShift, y: hipH - 4 * Math.max(0, stepVel) },
+        footB: { x: -16 - 9 * step - hipShift, y: hipH - 4 * Math.max(0, -stepVel) },
+      };
+    },
+  },
+  wiggle: {
+    label: 'Hip wiggle', sound: 'beat', bar: 2.4,
+    /** Feet planted, knees bent, hips wiggling fast, fists pumping. The classic taunt. */
+    clip(u) {
+      const w = Math.sin(u * TAU / 0.24), pump = Math.sin(u * TAU / 0.48);
+      const hipShift = 7 * w, hipH = 63 + 1.2 * Math.abs(w);
+      return {
+        hipH, bodyAngle: 0, lean: -0.1 * w + 0.05, headTilt: 0.12 * w - 0.1,
+        armF: { s: 1.05, e: 2.25 + 0.35 * pump }, armB: { s: 1.05, e: 2.25 - 0.35 * pump },
+        footF: { x: 20 - hipShift, y: hipH }, footB: { x: -22 - hipShift, y: hipH },
+      };
+    },
+  },
+  armswing: {
+    label: 'Arm swing', sound: 'beat', bar: 2.4,
+    /** Big relaxed arm swings with a head bob and little side steps (Carlton style). */
+    clip(u) {
+      const ph = u * TAU / 0.8, sw = Math.sin(ph), lift = Math.max(0, Math.cos(ph));
+      const hipH = 70 + 2 * Math.abs(sw);
+      return {
+        hipH, bodyAngle: 0, lean: 0.12 * sw, headTilt: -0.15 + 0.2 * sw,
+        armF: { s: 0.9 + 1.1 * sw, e: 0.5 - 0.3 * sw }, armB: { s: 0.9 + 1.1 * sw, e: 0.5 - 0.3 * sw },
+        footF: { x: 16 + 10 * sw, y: hipH - 10 * lift * (sw > 0 ? 1 : 0) },
+        footB: { x: -16 + 10 * sw, y: hipH - 10 * lift * (sw < 0 ? 1 : 0) },
+      };
+    },
+  },
+  buttshake: {
+    label: 'Butt shake', sound: 'beat', bar: 2.4, faceAway: true,
+    /** Turned away from the loser, bent forward, hips bouncing fast, looking back with a grin. */
+    clip(u) {
+      const b = Math.sin(u * TAU / 0.22);
+      const hipH = 60 + 3 * Math.abs(b), hipShift = -5 * b;
+      return {
+        hipH, bodyAngle: 0, lean: 0.42 + 0.03 * b, headTilt: -0.75,
+        armF: { s: 1.05, e: 0.35 }, armB: { s: 0.95, e: 0.45 },
+        footF: { x: 22 - hipShift, y: hipH }, footB: { x: -20 - hipShift, y: hipH },
+      };
+    },
+  },
+  shuffle: {
+    label: 'Shuffle + points', sound: 'beat', bar: 2.4,
+    /** Running man with a finger point at the crowd every other bar. */
+    clip(u) {
+      const ph = u * TAU / 0.45, sF = Math.sin(ph);
+      const hipH = 68 + Math.abs(sF) * 3;
+      const point = (u % 2.4) > 1.8 ? smooth(Math.min(1, ((u % 2.4) - 1.8) / 0.15)) : 0;
+      return {
+        hipH, bodyAngle: 0, lean: -0.1, headTilt: -0.1 - 0.15 * point,
+        armF: point ? { s: lerp(1.3 + 0.6 * sF, 1.75, point), e: lerp(1.6, 0, point) } : { s: 1.3 + 0.6 * sF, e: 1.6 },
+        armB: { s: 1.3 - 0.6 * sF, e: 1.6 },
+        footF: { x: 20 * Math.cos(ph) + 2, y: hipH - Math.max(0, -sF) * 22 },
+        footB: { x: -20 * Math.cos(ph) - 2, y: hipH - Math.max(0, sF) * 22 },
+      };
+    },
+  },
+  chicken: {
+    label: 'Chicken', sound: 'beat', bar: 2.4,
+    /** Elbows flapping, knees bouncing in and out, head pecking. */
+    clip(u) {
+      const flap = Math.sin(u * TAU / 0.3), knee = Math.sin(u * TAU / 0.6);
+      const hipH = 64 + 3 * Math.abs(knee);
+      return {
+        hipH, bodyAngle: 0, lean: 0.1 + 0.05 * flap, headTilt: 0.2 * Math.max(0, flap) - 0.05,
+        armF: { s: 0.7 + 0.45 * flap, e: 2.6 - 0.3 * flap }, armB: { s: 0.7 + 0.45 * flap, e: 2.6 - 0.3 * flap },
+        footF: { x: 14 + 9 * knee, y: hipH }, footB: { x: -14 - 9 * knee, y: hipH },
+      };
+    },
+  },
 };
 
 /* ----- attacks: timing, damage and the animation that goes with them ------ */
@@ -1345,13 +1428,16 @@ class Fighter {
     if (t >= this.stateDur) this.setState('idle');
   }
 
-  /** A hop on the fist pump, then clave clicks and music notes while the salsa plays. */
+  /** A hop on the fist pump, then the dance's beat and music notes. */
   updateVictoryDance() {
     const f = this.flags, t = this.stateTime;
+    const dance = DANCES[this.game.dance] || DANCES.salsa;
     this.vx = 0;
+    if (f.baseFacing === undefined) f.baseFacing = this.facing;
     if (!f.hopped && this.onGround) { f.hopped = true; this.vy = -260; this.onGround = false; }
-    const bar = t < 0.8 ? -1 : Math.floor((t - 0.8) / 2.4);     // one clave pattern per 2.4 s bar
-    if (bar !== f.bar) { f.bar = bar; if (bar >= 0) Sound.play('dance'); }
+    this.facing = (dance.faceAway && t >= 0.8) ? -f.baseFacing : f.baseFacing;
+    const bar = t < 0.8 ? -1 : Math.floor((t - 0.8) / dance.bar);
+    if (bar !== f.bar) { f.bar = bar; if (bar >= 0) Sound.play(dance.sound); }
     if (t >= 0.8 && t - (f.lastNote || 0) > 0.5) {
       f.lastNote = t;
       const h = this.headWorld();
@@ -1531,6 +1617,7 @@ class Game {
     this.shakeP = 0; this.flashA = 0;
     this.roundEnd = null;
     this.stats = this.freshStats();
+    this.dance = 'salsa';                       // key into DANCES; set from the preview screen
     this.frame = this.frame.bind(this);
   }
 
@@ -1583,10 +1670,7 @@ class Game {
       case 'dance':                                    // victory dance preview from the start screen
         this.updateFighters(dt, false);
         if (Math.random() < rawDt * 6) this.confetti();
-        if ((this.modeT > 0.5 && (Input.pressed('start') || Input.pressed('jab') || Input.pressed('power') || this.introTap)) || Input.pressed('pause')) {
-          this.introTap = false;
-          this.goMenu();
-        }
+        if ((this.modeT > 0.5 && Input.pressed('start')) || Input.pressed('pause')) this.goMenu();
         break;
       default: break;
     }
@@ -1854,7 +1938,7 @@ class Game {
     this.renderPopups(ctx);
     ctx.restore();
     if (this.mode !== 'menu' && this.mode !== 'dance') this.renderHUD(ctx);
-    if (this.mode === 'dance' && Math.floor(this.time * 2) % 2 === 0) arcadeText(ctx, 'PRESS ANY KEY OR TAP TO GO BACK', W / 2, H - 36, 24, '#fff', '#1d1530');
+    if (this.mode === 'dance') arcadeText(ctx, (DANCES[this.dance] || DANCES.salsa).label.toUpperCase(), W / 2, 40, 34, '#ffd166', '#1d1530');
     this.renderBanners(ctx);
     if (this.flashA > 0) { ctx.fillStyle = `rgba(255,255,255,${this.flashA.toFixed(3)})`; ctx.fillRect(0, 0, W, H); }
   }
@@ -2040,6 +2124,12 @@ const Screens = (() => {
     for (const id of ['btn-touch', 'btn-touch-2']) $(id).textContent = touchLabel;
   }
 
+  function setDance(key) {
+    if (!DANCES[key]) key = 'salsa';
+    game.dance = key; settings.dance = key; saveSettings();
+    document.querySelectorAll('#dance-bar [data-dance]').forEach((b) => b.classList.toggle('btn-primary', b.dataset.dance === key));
+  }
+
   function toggleFullscreen() {
     try {
       if (document.fullscreenElement) document.exitFullscreen();
@@ -2068,8 +2158,26 @@ const Screens = (() => {
       else if (game.mode === 'match_end' && !$('screen-victory').classList.contains('hidden')) game.startMatch();
     });
     // Tapping the arena skips the VS screen.
-    game.canvas.addEventListener('pointerdown', () => { if (game.mode === 'intro' || game.mode === 'dance') game.introTap = true; });
+    game.canvas.addEventListener('pointerdown', () => { if (game.mode === 'intro') game.introTap = true; });
     $('btn-dance').addEventListener('click', () => { Sound.unlock(); Sound.play('ui'); game.startDancePreview(); });
+    // dance picker shown on the preview screen
+    const bar = $('dance-bar');
+    for (const key in DANCES) {
+      const b = document.createElement('button');
+      b.className = 'btn btn-small'; b.dataset.dance = key; b.textContent = DANCES[key].label;
+      b.addEventListener('click', () => { Sound.play('ui'); setDance(key); game.startDancePreview(); });
+      bar.appendChild(b);
+    }
+    const back = document.createElement('button');
+    back.className = 'btn btn-small btn-ghost'; back.textContent = '\u25c0 Back';
+    back.addEventListener('click', () => { Sound.play('ui'); game.goMenu(); });
+    bar.appendChild(back);
+    window.addEventListener('keydown', (e) => {               // number keys switch dances in the preview
+      if (game.mode !== 'dance') return;
+      const keys = Object.keys(DANCES), n = parseInt(e.key, 10);
+      if (n >= 1 && n <= keys.length) { setDance(keys[n - 1]); game.startDancePreview(); }
+    });
+    setDance(settings.dance || 'salsa');
     applySettings();
   }
 
@@ -2077,6 +2185,7 @@ const Screens = (() => {
     if (m === 'menu') show('screen-start');
     else if (m !== 'match_end') hideAll();
     $('btn-pause').classList.toggle('hidden', !(m === 'fight' || m === 'round_intro' || m === 'round_end'));
+    $('dance-bar').classList.toggle('hidden', m !== 'dance');
   }
 
   function onPause(paused) { if (paused) show('screen-pause'); else hideAll(); }
@@ -2103,7 +2212,7 @@ const Screens = (() => {
     show('screen-victory');
   }
 
-  return { init, onMode, onPause, showVictory, show, hideAll, fitTitles };
+  return { init, onMode, onPause, showVictory, show, hideAll, fitTitles, setDance };
 })();
 
 // CUSTOM-FACES:START
@@ -2314,7 +2423,8 @@ function boot() {
   FaceCustomizer.init(game);
   // CUSTOM-FACES:END
   game.start();
-  if (/[?&]dance\b/.test(location.search)) game.startDancePreview();
+  const m = /[?&]dance(?:=([a-z]+))?/.exec(location.search);     // ?dance or ?dance=wiggle
+  if (m) { if (m[1] && DANCES[m[1]]) Screens.setDance(m[1]); game.startDancePreview(); }
   window.AWF = game;                                      // handy for poking at the game from the console
 }
 

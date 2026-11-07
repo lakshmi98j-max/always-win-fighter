@@ -29,7 +29,9 @@ sprite is drawn in code and every sound is synthesised with the Web Audio API.
 | Start / confirm / play again | `Enter` or `Space` | tap |
 
 The **Victory dance** button on the start screen (or adding `?dance` to the URL) shows the
-Hero's victory dance without playing a match.
+Hero's victory dance without playing a match, with a picker to choose the routine he uses:
+salsa, hip wiggle, arm swing, butt shake, shuffle with points, or chicken. The choice is
+remembered in this browser. `?dance=chicken` opens the preview on a given routine.
 
 On-screen touch buttons appear automatically on phones and tablets. They can be forced on or
 off with the "Touch controls" button on the start screen. Rotate the phone sideways for a
