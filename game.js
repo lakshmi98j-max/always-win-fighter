@@ -40,6 +40,7 @@ const ROUNDS_TO_WIN = 2;            // best of 3
 const HERO_MIN_HP = 10;             // THE RIG: the Hero's health can never drop below 10%
 const PUSH_DISTANCE = 52;           // fighters cannot overlap closer than this
 const BLEND_TIME = 0.1;             // seconds to blend between animation poses
+const LEG_SCALE = 1.13;             // poses are authored for shorter legs; this lengthens them
 const BG_SCALE = 3;                 // background drawn at 1/3 resolution for a pixel-art look
 const IDLE_PLAYER_SECONDS = 4;      // no attack input for this long = "player is doing nothing"
 const TAU = Math.PI * 2;
@@ -69,6 +70,14 @@ function mulberry32(seed) {
     t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
     return ((t ^ t >>> 14) >>> 0) / 4294967296;
   };
+}
+
+/** Mixes a hex colour toward white (amt > 0) or black (amt < 0). */
+function tint(hex, amt) {
+  const n = parseInt(hex.slice(1), 16);
+  const ch = (v) => Math.round(amt >= 0 ? v + (255 - v) * amt : v * (1 + amt));
+  const r = ch(n >> 16 & 255), g = ch(n >> 8 & 255), b = ch(n & 255);
+  return `rgb(${r},${g},${b})`;
 }
 
 function makeCanvas(w, h) {
@@ -364,7 +373,7 @@ function drawDefaultFace(ctx, size, who, expr) {
   fillEllipse(ctx, 70, 166, 26, 10); fillEllipse(ctx, 186, 166, 26, 10);
   ctx.globalAlpha = 1;
   if (hero) {                                                   // trimmed full beard and moustache
-    ctx.fillStyle = '#2b1d16'; ctx.globalAlpha = 0.82;
+    ctx.fillStyle = '#2b1d16'; ctx.globalAlpha = 0.72;
     ctx.beginPath();
     ctx.moveTo(34, 150);
     ctx.quadraticCurveTo(40, 232, 128, 246);
@@ -378,9 +387,9 @@ function drawDefaultFace(ctx, size, who, expr) {
     ctx.globalAlpha = 1;
   }
   // ear on the back edge (he faces to the right)
-  ctx.fillStyle = skin; ctx.strokeStyle = ink; ctx.lineWidth = 4;
-  ctx.beginPath(); ctx.ellipse(22, 126, 11, 17, 0, 0, TAU); ctx.fill(); ctx.stroke();
-  ctx.strokeStyle = shade; ctx.lineWidth = 3;
+  ctx.fillStyle = skin; ctx.strokeStyle = ink; ctx.lineWidth = 2.5;
+  ctx.beginPath(); ctx.ellipse(24, 126, 10, 16, 0, 0, TAU); ctx.fill(); ctx.stroke();
+  ctx.strokeStyle = shade; ctx.lineWidth = 2.5;
   ctx.beginPath(); ctx.ellipse(24, 128, 5, 9, 0, 0, TAU); ctx.stroke();
   // blush
   if (!hero || expr === 'happy') {
@@ -391,16 +400,16 @@ function drawDefaultFace(ctx, size, who, expr) {
 
   // ---- eyes ------------------------------------------------------------
   const eyes = [{ x: 92, y: 112 }, { x: 166, y: 112 }];
-  const eyeRx = hero ? 19 : 20, eyeRy = hero ? 11 : 14;
+  const eyeRx = hero ? 16 : 17, eyeRy = hero ? 9.5 : 11.5;
   for (let i = 0; i < 2; i++) {
     const { x, y } = eyes[i];
     const outer = i === 0 ? -1 : 1;
     if (expr === 'hurt') {
-      strokeLine(ctx, x + outer * 14, y - 9, x - outer * 8, y, 6, ink);
-      strokeLine(ctx, x + outer * 14, y + 9, x - outer * 8, y, 6, ink);
+      strokeLine(ctx, x + outer * 13, y - 8, x - outer * 7, y, 4.5, ink);
+      strokeLine(ctx, x + outer * 13, y + 8, x - outer * 7, y, 4.5, ink);
     } else if (expr === 'happy') {
-      ctx.lineCap = 'round'; ctx.lineWidth = 6; ctx.strokeStyle = ink;
-      ctx.beginPath(); ctx.moveTo(x - 17, y + 3); ctx.quadraticCurveTo(x, y - 15, x + 17, y + 3); ctx.stroke();
+      ctx.lineCap = 'round'; ctx.lineWidth = 4.5; ctx.strokeStyle = ink;
+      ctx.beginPath(); ctx.moveTo(x - 15, y + 3); ctx.quadraticCurveTo(x, y - 13, x + 15, y + 3); ctx.stroke();
       ctx.lineWidth = 3; ctx.strokeStyle = shade;
       ctx.beginPath(); ctx.moveTo(x - 10, y + 10); ctx.quadraticCurveTo(x, y + 14, x + 10, y + 10); ctx.stroke();
     } else if (expr === 'dizzy') {
@@ -419,9 +428,9 @@ function drawDefaultFace(ctx, size, who, expr) {
       const look = expr === 'tired' ? 1 : 5, down = expr === 'tired' ? 4 : 1;
       const ig = ctx.createRadialGradient(x + look, y + down, 2, x + look, y + down, 9);
       ig.addColorStop(0, iris); ig.addColorStop(1, hero ? '#2b170c' : '#1d5a38');
-      ctx.fillStyle = ig; ctx.beginPath(); ctx.arc(x + look, y + down, 9, 0, TAU); ctx.fill();
-      ctx.fillStyle = ink; ctx.beginPath(); ctx.arc(x + look, y + down, 4, 0, TAU); ctx.fill();
-      ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(x + look + 3, y + down - 3, 2.5, 0, TAU); ctx.fill();
+      ctx.fillStyle = ig; ctx.beginPath(); ctx.arc(x + look, y + down, 8, 0, TAU); ctx.fill();
+      ctx.fillStyle = ink; ctx.beginPath(); ctx.arc(x + look, y + down, 3.6, 0, TAU); ctx.fill();
+      ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(x + look + 2.5, y + down - 2.5, 2, 0, TAU); ctx.fill();
       // eyelid for narrowed / tired eyes
       if (expr === 'angry' || expr === 'tired') {
         ctx.fillStyle = skin;
@@ -433,9 +442,9 @@ function drawDefaultFace(ctx, size, who, expr) {
       ctx.restore();
       // lid lines: thick upper, thin lower
       ctx.lineCap = 'round'; ctx.strokeStyle = ink;
-      ctx.lineWidth = hero ? 4 : 5;
+      ctx.lineWidth = hero ? 3 : 3.5;
       ctx.beginPath(); ctx.ellipse(x, y, eyeRx, eyeRy, 0, Math.PI, TAU); ctx.stroke();
-      ctx.lineWidth = 2;
+      ctx.lineWidth = 1.5;
       ctx.beginPath(); ctx.ellipse(x, y, eyeRx, eyeRy, 0, 0, Math.PI); ctx.stroke();
       if (expr === 'angry' || expr === 'tired') {
         const lid = expr === 'angry' ? 7 : 10;
@@ -459,7 +468,7 @@ function drawDefaultFace(ctx, size, who, expr) {
     else if (expr === 'dizzy') { inner = -5; outerLift = 3; }
     else if (hero) { inner = 2; }
     ctx.lineCap = 'round'; ctx.strokeStyle = hero ? '#1d1511' : '#5a1e2b';
-    ctx.lineWidth = hero ? 9 : 4.5;
+    ctx.lineWidth = hero ? 7.5 : 3.5;
     ctx.beginPath();
     ctx.moveTo(x - outer * 20, browY + inner);
     ctx.quadraticCurveTo(x + outer * 2, browY - 6 + (inner + outerLift) / 2, x + outer * 21, browY + outerLift);
@@ -470,7 +479,7 @@ function drawDefaultFace(ctx, size, who, expr) {
   ctx.lineCap = 'round'; ctx.strokeStyle = shade;
   ctx.lineWidth = 3; ctx.globalAlpha = 0.7;
   ctx.beginPath(); ctx.moveTo(130, 126); ctx.quadraticCurveTo(140, 146, 134, 158); ctx.stroke();
-  ctx.globalAlpha = 1; ctx.lineWidth = 4; ctx.strokeStyle = deep;
+  ctx.globalAlpha = 0.85; ctx.lineWidth = 3; ctx.strokeStyle = deep;
   ctx.beginPath(); ctx.moveTo(118, 160); ctx.quadraticCurveTo(126, 168, 136, 161); ctx.quadraticCurveTo(142, 156, 138, 150); ctx.stroke();
   ctx.fillStyle = deep; ctx.globalAlpha = 0.8;
   fillEllipse(ctx, 121, 161, 3.5, 2.5); fillEllipse(ctx, 134, 162, 3.5, 2.5);
@@ -562,6 +571,12 @@ function stand(hipH, fx, bx, extra = {}) {
     armF: { s: 1.15, e: 1.95 }, armB: { s: 0.85, e: 2.1 },
     footF: { x: fx, y: hipH }, footB: { x: bx, y: hipH },
   }, extra);
+}
+
+/** Returns a copy of a pose with the legs lengthened by LEG_SCALE (hip height and foot positions). */
+function scaleLegs(p) {
+  const f = (ft) => ({ x: ft.x * LEG_SCALE, y: ft.y * LEG_SCALE, z: ft.z });
+  return { ...p, hipH: p.hipH * LEG_SCALE, footF: f(p.footF), footB: f(p.footB) };
 }
 
 /** Builds a clip from absolute-time keyframes with smooth interpolation. */
@@ -920,20 +935,20 @@ const ATTACKS = {
    ========================================================================== */
 const STYLES = {
   hero: {
-    skin: '#c98f62', skinShade: '#9a6540', ink: '#1d1530',
+    skin: '#c98f62', skinShade: '#9a6540', ink: '#3a2a22',
     top: '#4b505a', topShade: '#2c3038', topTrim: '#4f7fc4', pants: '#2c3f87', pantsShade: '#1b2756',
     belt: '#1d1530', glove: '#e63946', wrap: '#f5f5f5', shoe: '#2b2b3d', shoeTrim: '#f2f2f2', hair: '#17110f', band: '#e63946',
-    torsoW: 40, waistW: 30, hipW: 32, torsoLen: 56, neck: 9, headR: 21,
-    upperArm: 27, foreArm: 27, thigh: 38, shin: 36,
-    armW: [16, 12, 9], legW: [19, 14, 10], fistW: 16, hairStyle: 'short',
+    torsoW: 40, waistW: 31, hipW: 32, torsoLen: 60, neck: 11, headR: 18,
+    upperArm: 29, foreArm: 28, thigh: 43, shin: 41,
+    armW: [15, 12, 9], legW: [18, 13, 10], fistW: 15, hairStyle: 'short',
   },
   challenger: {
-    skin: '#e8b48a', skinShade: '#bf8560', ink: '#1d1530',
+    skin: '#e8b48a', skinShade: '#bf8560', ink: '#3d2a24',
     top: '#8e2de2', topShade: '#5f179c', topTrim: '#ffd166', pants: '#1b1b2f', pantsShade: '#0e0e1c',
     belt: '#ffd166', glove: '#c026d3', wrap: '#ffd166', shoe: '#3b0764', shoeTrim: '#d8b4fe', hair: '#7a1b36', band: '#ffd166',
-    torsoW: 31, waistW: 20, hipW: 31, torsoLen: 54, neck: 9, headR: 20,
-    upperArm: 26, foreArm: 26, thigh: 37, shin: 36,
-    armW: [12, 9, 7], legW: [16, 12, 8], fistW: 13, hairStyle: 'long',
+    torsoW: 31, waistW: 21, hipW: 31, torsoLen: 57, neck: 11, headR: 17,
+    upperArm: 28, foreArm: 27, thigh: 42, shin: 41,
+    armW: [12, 9, 7], legW: [15, 11, 8], fistW: 12, hairStyle: 'long',
   },
 };
 
@@ -1036,25 +1051,22 @@ function segmentPath(p1, p2, w1, w2) {
 }
 
 /**
- * Draws a jointed limb (3 points, 3 widths): outlines first, then fills, then a
- * soft shadow along the side facing away from the light (top-left of the screen).
+ * Draws a jointed limb (3 points, 3 widths): thin outlines, then each segment
+ * filled with a gradient from the lit side to the shadow side.
  */
 function drawLimb(ctx, pts, widths, color, shade, ink) {
   const segs = [segmentPath(pts[0], pts[1], widths[0], widths[1]), segmentPath(pts[1], pts[2], widths[1], widths[2])];
-  ctx.lineJoin = 'round'; ctx.lineWidth = 5; ctx.strokeStyle = ink;
+  ctx.lineJoin = 'round'; ctx.lineWidth = 3; ctx.strokeStyle = ink;
   for (const p of segs) ctx.stroke(p);
-  ctx.fillStyle = color;
-  for (const p of segs) ctx.fill(p);
   for (let i = 0; i < 2; i++) {
-    const p1 = pts[i], p2 = pts[i + 1], w1 = widths[i], w2 = widths[i + 1];
+    const p1 = pts[i], p2 = pts[i + 1], w = Math.max(widths[i], widths[i + 1]);
     const dx = p2.x - p1.x, dy = p2.y - p1.y, L = Math.hypot(dx, dy) || 1;
     let nx = -dy / L, ny = dx / L;
-    if (nx + ny < 0) { nx = -nx; ny = -ny; }                      // the side away from the light
-    ctx.save(); ctx.clip(segs[i]);
-    ctx.globalAlpha = 0.45; ctx.lineCap = 'round'; ctx.strokeStyle = shade;
-    ctx.lineWidth = Math.max(w1, w2) * 0.42;
-    ctx.beginPath(); ctx.moveTo(p1.x + nx * w1 * 0.42, p1.y + ny * w1 * 0.42); ctx.lineTo(p2.x + nx * w2 * 0.42, p2.y + ny * w2 * 0.42); ctx.stroke();
-    ctx.restore();
+    if (nx + ny < 0) { nx = -nx; ny = -ny; }                      // n points away from the light
+    const mx = (p1.x + p2.x) / 2, my = (p1.y + p2.y) / 2;
+    const g = ctx.createLinearGradient(mx - nx * w / 2, my - ny * w / 2, mx + nx * w / 2, my + ny * w / 2);
+    g.addColorStop(0, tint(color, 0.18)); g.addColorStop(0.45, color); g.addColorStop(1, shade);
+    ctx.fillStyle = g; ctx.fill(segs[i]);
   }
 }
 
@@ -1072,7 +1084,7 @@ function drawLeg(ctx, st, leg, fwd) {
   ctx.lineTo(f.x - 5 * sgn, f.y - 9);
   ctx.closePath();
   ctx.fillStyle = st.shoe; ctx.fill();
-  ctx.lineJoin = 'round'; ctx.lineWidth = 4; ctx.strokeStyle = st.ink; ctx.stroke();
+  ctx.lineJoin = 'round'; ctx.lineWidth = 2.5; ctx.strokeStyle = st.ink; ctx.stroke();
   ctx.lineCap = 'round'; ctx.lineWidth = 3; ctx.strokeStyle = st.shoeTrim;
   ctx.beginPath(); ctx.moveTo(heelX + 5 * sgn, f.y + 3); ctx.lineTo(toeX - 4 * sgn, f.y + 3); ctx.stroke();   // sole stripe
   ctx.lineWidth = 2;
@@ -1081,7 +1093,7 @@ function drawLeg(ctx, st, leg, fwd) {
 
 function drawArm(ctx, st, arm) {
   // rounded shoulder
-  ctx.fillStyle = st.skin; ctx.strokeStyle = st.ink; ctx.lineWidth = 4;
+  ctx.fillStyle = st.skin; ctx.strokeStyle = st.ink; ctx.lineWidth = 3;
   ctx.beginPath(); ctx.arc(arm.shoulder.x, arm.shoulder.y, st.armW[0] / 2 + 1, 0, TAU); ctx.fill(); ctx.stroke();
   drawLimb(ctx, [arm.shoulder, arm.elbow, arm.fist], st.armW, st.skin, st.skinShade, st.ink);
   ctx.fillStyle = st.skin; ctx.beginPath(); ctx.arc(arm.shoulder.x, arm.shoulder.y, st.armW[0] / 2 - 1, 0, TAU); ctx.fill();
@@ -1096,11 +1108,11 @@ function drawFist(ctx, st, arm) {
   ctx.translate(arm.fist.x, arm.fist.y);
   ctx.rotate(Math.atan2(dy, dx));
   // wrist wrap
-  ctx.lineCap = 'butt'; ctx.lineWidth = 7; ctx.strokeStyle = st.ink;
+  ctx.lineCap = 'butt'; ctx.lineWidth = 6; ctx.strokeStyle = st.ink;
   ctx.beginPath(); ctx.moveTo(-6, -st.armW[2] / 2 - 2); ctx.lineTo(-6, st.armW[2] / 2 + 2); ctx.stroke();
   ctx.lineWidth = 4; ctx.strokeStyle = st.wrap; ctx.stroke();
   // the fist
-  ctx.fillStyle = st.glove; ctx.strokeStyle = st.ink; ctx.lineWidth = 4; ctx.lineJoin = 'round';
+  ctx.fillStyle = st.glove; ctx.strokeStyle = st.ink; ctx.lineWidth = 2.5; ctx.lineJoin = 'round';
   ctx.beginPath();
   ctx.moveTo(-2, -h / 2); ctx.lineTo(w * 0.45, -h / 2);
   ctx.quadraticCurveTo(w * 0.8, -h / 2, w * 0.8, 0);
@@ -1109,7 +1121,7 @@ function drawFist(ctx, st, arm) {
   ctx.fill(); ctx.stroke();
   // thumb and knuckle lines
   ctx.beginPath(); ctx.arc(w * 0.15, -h / 2 + 1, h * 0.28, 0, TAU); ctx.fill(); ctx.stroke();
-  ctx.lineWidth = 2; ctx.lineCap = 'round';
+  ctx.lineWidth = 1.5; ctx.lineCap = 'round';
   for (let k = -1; k <= 1; k++) { ctx.beginPath(); ctx.moveTo(w * 0.62, k * h * 0.26); ctx.lineTo(w * 0.72, k * h * 0.26); ctx.stroke(); }
   ctx.restore();
 }
@@ -1123,7 +1135,7 @@ function drawTorso(ctx, st, sk, cy, sy) {
   // shorts / trousers top: a box from y = -6 to 14
   const shorts = [];
   for (const y of [-6, 14]) for (const x of [-hw - 1, hw + 1]) for (const z of [-hipZ, hipZ]) shorts.push(P(x, y, sk.sway + z));
-  fillPoly(ctx, convexHull(shorts), st.pants, st.ink, 4);
+  fillPoly(ctx, convexHull(shorts), st.pants, st.ink, 2.5);
   // torso outline: shoulders, waist, hips (each level is a box seen from the current angle)
   const top = [], waist = [], bottom = [];
   for (const sgn of [-1, 1]) for (const z of [-shZ, shZ]) top.push(P(s.x + sgn * px * tw, s.y + sgn * py * tw, sk.sway + z));
@@ -1135,14 +1147,14 @@ function drawTorso(ctx, st, sk, cy, sy) {
   // soften the shoulder line into a slight curve by adding mid points above the shoulders
   const topMid = P(s.x, s.y - 3, sk.sway);
   const outline = [tl, wl, bl, br, wr, tr, topMid];
-  fillPoly(ctx, outline, st.top, st.ink, 5);
-  // shading on the side away from the light, clipped to the torso
+  fillPoly(ctx, outline, st.top, st.ink, 3);
+  // lit on the left, shadowed on the right, clipped to the torso
   ctx.save();
   ctx.beginPath(); ctx.moveTo(outline[0].x, outline[0].y); for (let i = 1; i < outline.length; i++) ctx.lineTo(outline[i].x, outline[i].y); ctx.closePath(); ctx.clip();
-  const cx = (tl.x + tr.x) / 2;
-  const g = ctx.createLinearGradient(cx - 10, 0, cx + 26, 0);
-  g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,0.28)');
-  ctx.fillStyle = g; ctx.fillRect(cx - 10, -200, 80, 400);
+  const cx = (tl.x + tr.x) / 2, hwid = Math.max(12, (tr.x - tl.x) / 2);
+  const g = ctx.createLinearGradient(cx - hwid, 0, cx + hwid, 0);
+  g.addColorStop(0, tint(st.top, 0.16)); g.addColorStop(0.5, st.top); g.addColorStop(1, st.topShade);
+  ctx.fillStyle = g; ctx.fillRect(cx - hwid - 20, -200, hwid * 2 + 40, 400);
   // fabric folds / muscle detail
   ctx.lineCap = 'round'; ctx.strokeStyle = st.topShade; ctx.globalAlpha = 0.7; ctx.lineWidth = 2.5;
   const chest = P(s.x * 0.8, s.y * 0.8 + 6, sk.sway), belly = P(2, -8, sk.sway);
@@ -1175,14 +1187,14 @@ function drawTorso(ctx, st, sk, cy, sy) {
   const belt = [];
   for (const x of [-hw - 2, hw + 2]) for (const z of [-hipZ, hipZ]) belt.push(P(x, 0, sk.sway + z));
   const [bel, ber] = extremes(belt);
-  strokePath(ctx, [bel, ber], 10, st.ink);
-  strokePath(ctx, [bel, ber], 6, st.belt);
+  strokePath(ctx, [bel, ber], 8, st.ink);
+  strokePath(ctx, [bel, ber], 5, st.belt);
 }
 
 /** Hair is drawn behind the face so an uploaded photo is never covered. */
 function drawHair(ctx, st, R, f) {
   const t = f.animT || 0;
-  ctx.lineJoin = 'round'; ctx.fillStyle = st.hair; ctx.strokeStyle = st.ink; ctx.lineWidth = 3;
+  ctx.lineJoin = 'round'; ctx.fillStyle = st.hair; ctx.strokeStyle = st.ink; ctx.lineWidth = 2;
   if (st.hairStyle === 'short') {
     // headband tails flutter behind the head
     const wob = Math.sin(t * 9) * 4 - (f.vx || 0) * 0.02;
@@ -1193,10 +1205,10 @@ function drawHair(ctx, st, R, f) {
       ctx.lineWidth = 4; ctx.strokeStyle = st.band; ctx.stroke();
     }
     // short hair swept back: a mass above and behind the head with a few tufts
-    ctx.strokeStyle = st.ink; ctx.lineWidth = 3; ctx.fillStyle = st.hair;
-    ctx.beginPath(); ctx.ellipse(-3, -5, R + 6, R * 0.98, -0.15, 0, TAU); ctx.fill(); ctx.stroke();
+    ctx.strokeStyle = st.ink; ctx.lineWidth = 2; ctx.fillStyle = st.hair;
+    ctx.beginPath(); ctx.ellipse(-3, -6, R + 6, R * 1.02, -0.15, 0, TAU); ctx.fill(); ctx.stroke();
     for (let i = 0; i < 7; i++) {                                  // tousled tufts across the top
-      const a = Math.PI * 1.02 + i * 0.16, len = R + 9 + (i % 3) * 3;
+      const a = Math.PI * 1.02 + i * 0.16, len = R + 5 + (i % 3) * 2;
       ctx.beginPath();
       ctx.moveTo(Math.cos(a - 0.08) * (R + 3), Math.sin(a - 0.08) * (R + 3));
       ctx.lineTo(Math.cos(a + 0.03) * len - 2, Math.sin(a + 0.03) * len - 1);
@@ -1218,48 +1230,63 @@ function drawHair(ctx, st, R, f) {
     for (let i = 0; i < 3; i++) { const x0 = -R + 6 + i * 8; ctx.beginPath(); ctx.moveTo(x0, R * 0.5); ctx.quadraticCurveTo(x0 - 4 + sw, R * 1.3, x0 - 2 + sw, R * 1.9); ctx.stroke(); }
     ctx.globalAlpha = 1;
     // top of the head
-    ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.arc(0, 0, R + 4, Math.PI * 0.9, TAU + Math.PI * 0.1); ctx.fill(); ctx.stroke();
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.ellipse(0, -2, R + 4, R * 1.12, 0, Math.PI * 0.9, TAU + Math.PI * 0.1); ctx.fill(); ctx.stroke();
   }
+}
+
+/** The head outline: an egg, wider at the brow and narrowing to the chin. R is the half width. */
+function headPath(ctx, R) {
+  const top = -R * 1.12, bottom = R * 1.08;
+  ctx.beginPath();
+  ctx.moveTo(0, top);
+  ctx.bezierCurveTo(R * 1.06, top, R * 1.06, R * 0.25, R * 0.72, bottom - R * 0.2);
+  ctx.bezierCurveTo(R * 0.45, bottom + R * 0.05, -R * 0.45, bottom + R * 0.05, -R * 0.72, bottom - R * 0.2);
+  ctx.bezierCurveTo(-R * 1.06, R * 0.25, -R * 1.06, top, 0, top);
+  ctx.closePath();
 }
 
 function drawHead(ctx, st, sk, f, cy, sy) {
   const h = project(sk.head, cy, sy), sh = project(sk.shoulder, cy, sy), R = st.headR;
   // neck
-  strokePath(ctx, [sh, h], 16, st.ink);
+  strokePath(ctx, [sh, h], 15, st.ink);
   strokePath(ctx, [sh, h], 12, st.skin);
   ctx.save(); ctx.globalAlpha = 0.35; strokePath(ctx, [{ x: sh.x + 2, y: sh.y }, { x: h.x + 2, y: h.y }], 4, st.skinShade); ctx.restore();
   ctx.save();
   ctx.translate(h.x, h.y);
   ctx.rotate(sk.headAngle * cy);
-  // hair behind the head; the side-view shapes (ponytail, headband tails) foreshorten with the turn
+  // hair behind the head; the side-view shapes foreshorten with the turn
   ctx.save(); ctx.scale(Math.abs(cy) < 0.08 ? 0.08 : cy, 1); drawHair(ctx, st, R, f); ctx.restore();
   // the face: fully visible from the side or the front, sliding away (and the back of
   // the head showing) when the body turns away from the viewer
-  const turn = Math.abs(Math.atan2(sy, cy));                 // 0 side, PI/2 front, PI back
+  const turn = Math.abs(Math.atan2(sy, cy));
   const v = turn <= Math.PI / 2 ? 1 : Math.max(0, Math.cos(turn - Math.PI / 2));
   const fwd = cy >= 0 ? 1 : -1;
-  ctx.fillStyle = st.skin; ctx.beginPath(); ctx.arc(0, 0, R, 0, TAU); ctx.fill();
+  const W = R * 2.12, Hh = R * 2.2, top = -R * 1.12;             // the egg's bounding box
+  ctx.fillStyle = st.skin; headPath(ctx, R); ctx.fill();
   ctx.save();
-  ctx.beginPath(); ctx.arc(0, 0, R, 0, TAU); ctx.clip();
+  headPath(ctx, R); ctx.clip();
   if (v > 0.01) {
     ctx.save(); ctx.translate(fwd * R * (1 - v), 0); ctx.scale(v, 1);
-    ctx.drawImage(f.face, -R, -R, R * 2, R * 2);
+    ctx.drawImage(f.face, -W / 2, top, W, Hh);
     ctx.restore();
   }
-  if (v < 0.99) { ctx.fillStyle = st.hair; ctx.beginPath(); ctx.ellipse(-fwd * R * v, 0, R * (1 - v) + 0.5, R + 1, 0, 0, TAU); ctx.fill(); }
+  if (v < 0.99) { ctx.fillStyle = st.hair; ctx.beginPath(); ctx.ellipse(-fwd * R * v, 0, R * (1 - v) + 0.5, R * 1.2, 0, 0, TAU); ctx.fill(); }
+  // soft shadow under the jaw and on the far side
+  const jg = ctx.createLinearGradient(0, R * 0.3, 0, R * 1.1);
+  jg.addColorStop(0, 'rgba(0,0,0,0)'); jg.addColorStop(1, 'rgba(0,0,0,0.18)');
+  ctx.fillStyle = jg; ctx.fillRect(-W, 0, W * 2, Hh);
   ctx.restore();
-  ctx.lineWidth = 4; ctx.strokeStyle = st.ink;
-  ctx.beginPath(); ctx.arc(0, 0, R, 0, TAU); ctx.stroke();
+  ctx.lineWidth = 2.5; ctx.strokeStyle = st.ink; headPath(ctx, R); ctx.stroke();
   // accessories in front of the face
   if (st.hairStyle === 'short') {
     ctx.lineCap = 'butt';
-    ctx.lineWidth = 9; ctx.strokeStyle = st.ink;
-    ctx.beginPath(); ctx.arc(0, 0, R - 3, Math.PI + 0.35, TAU - 0.35); ctx.stroke();
+    ctx.lineWidth = 8; ctx.strokeStyle = st.ink;
+    ctx.beginPath(); ctx.ellipse(0, -2, R - 2, R * 1.08, 0, Math.PI + 0.35, TAU - 0.35); ctx.stroke();
     ctx.lineWidth = 5; ctx.strokeStyle = st.band; ctx.stroke();
   } else {
-    ctx.fillStyle = st.band; ctx.strokeStyle = st.ink; ctx.lineWidth = 2;
-    for (const sx of [-1, 1]) { ctx.beginPath(); ctx.arc(sx * (R - 1), R * 0.35, 4, 0, TAU); ctx.fill(); ctx.stroke(); }
+    ctx.fillStyle = st.band; ctx.strokeStyle = st.ink; ctx.lineWidth = 1.5;
+    for (const sx of [-1, 1]) { ctx.beginPath(); ctx.arc(sx * (R - 1), R * 0.45, 3.5, 0, TAU); ctx.fill(); ctx.stroke(); }
   }
   ctx.restore();
 }
@@ -1337,14 +1364,15 @@ class Fighter {
     this.facing = facing; this.onGround = true;
     this.attack = null; this.walkDir = 1; this.lie = 'back'; this.flags = {};
     this.state = 'idle'; this.stateTime = 0; this.stateDur = 0;
-    this.pose = CLIPS.idle(0, this); this.prevPose = this.pose; this.blendT = BLEND_TIME;
+    this.rawPose = CLIPS.idle(0, this); this.prevPose = this.rawPose; this.blendT = BLEND_TIME;
+    this.pose = scaleLegs(this.rawPose);
     this.skel = computeSkeleton(this.pose, this.style);
     this.face = FaceStore.get(this.id, 'normal');
     this.ai = { timer: 0, intent: 'wait', misfortune: rand(3, 5) };
   }
 
   setState(name, dur = 0) {
-    this.prevPose = this.pose;
+    this.prevPose = this.rawPose;
     this.blendT = 0;
     this.state = name; this.stateTime = 0; this.stateDur = dur; this.flags = {};
   }
@@ -1438,7 +1466,8 @@ class Fighter {
     // ---- animation ----
     const target = this.currentClip()(this.stateTime, this);
     this.blendT = Math.min(BLEND_TIME, this.blendT + dt);
-    this.pose = this.blendT < BLEND_TIME ? lerpPose(this.prevPose, target, smooth(this.blendT / BLEND_TIME)) : target;
+    this.rawPose = this.blendT < BLEND_TIME ? lerpPose(this.prevPose, target, smooth(this.blendT / BLEND_TIME)) : target;
+    this.pose = scaleLegs(this.rawPose);
     this.skel = computeSkeleton(this.pose, this.style);
     this.face = FaceStore.get(this.id, this.currentExpression());
 
@@ -2331,7 +2360,8 @@ class Game {
   }
 
   drawFighterPreview(ctx, f, x, feetY, scale, pose, facing) {
-    const view = { style: f.style, pose, skel: computeSkeleton(pose, f.style), facing, face: FaceStore.get(f.id, 'normal'), animT: this.time, vx: 0 };
+    const sp = scaleLegs(pose);
+    const view = { style: f.style, pose: sp, skel: computeSkeleton(sp, f.style), facing, face: FaceStore.get(f.id, 'normal'), animT: this.time, vx: 0 };
     ctx.save(); ctx.translate(x, feetY); ctx.scale(scale, scale);
     renderFighter(ctx, view);
     ctx.restore();

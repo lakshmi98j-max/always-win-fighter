@@ -61,7 +61,7 @@ bigger arena.
 <!-- CUSTOM-FACES:START -->
 ## Custom faces
 
-Each fighter's head is a circle, so any face photo can be mapped onto it. The face follows the
+Each fighter's head is an oval face area, so any face photo can be mapped onto it. The face follows the
 head through every animation: walking, jumping, punching, getting knocked down and celebrating.
 
 ### Upload faces in the game
@@ -134,8 +134,9 @@ Copy the `always-win-fighter/` folder into the site and it works at
 
 - **Game loop**: `requestAnimationFrame` at the display rate (normally 60 FPS) with a clamped
   delta time, a short "hit stop" freeze on impact and slow motion on the K.O.
-- **Fighters** are small skeletons drawn as tapered, shaded limbs with rounded joints, fists,
-  shoes, a shaped torso (shoulders, waist, hips) and hair. A *pose* stores the hip height, body
+- **Fighters** are small skeletons drawn as tapered limbs with gradient shading and rounded
+  joints, fists, shoes, a shaped torso (shoulders, waist, hips), egg-shaped heads and hair, with
+  thin outlines in a darker tone of each colour. A *pose* stores the hip height, body
   rotation, torso lean, arm angles and foot positions; knees are solved with two-bone inverse
   kinematics. Joints are
   3D (arms and legs have sideways positions), so a pose can also turn the body with a `yaw`:
