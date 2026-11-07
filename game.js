@@ -178,6 +178,12 @@ const Sound = (() => {
         tone({ type: 'triangle', f0: f / 2, dur: 0.2, vol: 0.15, delay: i * 0.11 });
       });
     },
+    dance()  {
+      [392, 523, 659, 523, 784, 659, 1046].forEach((f, i) => {
+        tone({ type: 'square', f0: f, dur: 0.1, vol: 0.12, delay: i * 0.14 });
+        tone({ type: 'triangle', f0: f / 4, f1: f / 8, dur: 0.12, vol: 0.2, delay: i * 0.14 });
+      });
+    },
     trip()   { tone({ f0: 900, f1: 150, dur: 0.45, vol: 0.22 }); },                       // slide whistle
     thud()   { noise({ dur: 0.12, vol: 0.5, type: 'lowpass', f0: 500, f1: 80 }); tone({ f0: 90, f1: 40, dur: 0.15, vol: 0.5 }); },
     tired()  { noise({ dur: 0.35, vol: 0.12, f0: 500, f1: 250, q: 2, attack: 0.1 }); },
@@ -599,6 +605,9 @@ const SNEEZE_KF = keyframes([
   { t: 1.4, pose: IDLE_POSE },
 ]);
 
+/** Maps time in the victory state onto the dance routine (hops once, then a 6 s loop). */
+function victoryPhase(t) { return t < 1.4 ? t : 1.4 + ((t - 1.4) % 6); }
+
 const CLIPS = {
   idle(t) {
     const b = Math.sin(t * 3.2);
@@ -635,13 +644,46 @@ const CLIPS = {
     const b = Math.sin(t * 8);
     return stand(72, 14, -16, { lean: -0.08 + b * 0.03, headTilt: -0.1 + b * 0.08, armF: { s: 0.55, e: 2.5 }, armB: { s: 0.55, e: 2.5 } });
   },
+  /**
+   * The victory dance. 1.4 s of arms-up hops, then a 6 s routine that loops:
+   * disco point, twirl, running man, biceps flex. See victoryPhase().
+   */
   victory(t) {
-    const ph = t * 7, hop = Math.max(0, Math.sin(ph));
-    return stand(74, 14, -14, {
-      lean: -0.1, headTilt: -0.25,
-      armF: { s: 2.9 + 0.12 * Math.sin(ph), e: 0.15 }, armB: { s: 2.7 - 0.12 * Math.sin(ph), e: 0.25 },
-      footF: { x: 14, y: 74 - hop * 10 }, footB: { x: -14, y: 74 },
-    });
+    const u = victoryPhase(t);
+    if (u < 1.4) {                                            // arms-up hops
+      const ph = t * 7, hop = Math.max(0, Math.sin(ph));
+      return stand(74, 14, -14, {
+        lean: -0.1, headTilt: -0.25,
+        armF: { s: 2.9 + 0.12 * Math.sin(ph), e: 0.15 }, armB: { s: 2.7 - 0.12 * Math.sin(ph), e: 0.25 },
+        footF: { x: 14, y: 74 - hop * 10 }, footB: { x: -14, y: 74 },
+      });
+    }
+    if (u < 3.4) {                                            // disco point: one arm up, one down, hips swaying
+      const ph = (u - 1.4) * TAU / 0.5, sw = Math.sin(ph), up = sw > 0;
+      const hipH = 70 + Math.abs(sw) * 2;
+      return stand(hipH, 16 + 8 * sw, -16 + 8 * sw, {
+        lean: 0.15 * sw, headTilt: -0.15 - 0.1 * sw,
+        armF: up ? { s: 2.7, e: -0.2 } : { s: 0.5, e: 0.2 },
+        armB: up ? { s: 0.5, e: 0.2 } : { s: 2.7, e: -0.2 },
+      });
+    }
+    if (u < 4.4) {                                            // twirl: arms out (the facing flips in Fighter.update)
+      const b = Math.sin((u - 3.4) * TAU * 3);
+      return stand(72 + b, 10, -10, { lean: 0.02, headTilt: -0.1, armF: { s: 1.6, e: 0.1 }, armB: { s: 1.5, e: 0.1 } });
+    }
+    if (u < 6.4) {                                            // running man
+      const ph = (u - 4.4) * TAU / 0.45, sF = Math.sin(ph);
+      const hipH = 68 + Math.abs(sF) * 3;
+      return {
+        hipH, bodyAngle: 0, lean: -0.12, headTilt: -0.1,
+        armF: { s: 1.3 + 0.6 * sF, e: 1.6 }, armB: { s: 1.3 - 0.6 * sF, e: 1.6 },
+        footF: { x: 20 * Math.cos(ph) + 2, y: hipH - Math.max(0, -sF) * 22 },
+        footB: { x: -20 * Math.cos(ph) - 2, y: hipH - Math.max(0, sF) * 22 },
+      };
+    }
+    // double-biceps flex for the crowd: one arm forward, one back, forearms up
+    const b = Math.sin((u - 6.4) * TAU * 2);
+    return stand(70 + b, 20, -20, { lean: 0.05, headTilt: -0.2 + 0.05 * b, armF: { s: 1.5, e: 1.5 + 0.12 * b }, armB: { s: -1.5, e: -1.5 - 0.12 * b } });
   },
   tired(t) {
     const b = Math.sin(t * 9);
@@ -1065,11 +1107,7 @@ class Fighter {
       case 'tired': this.updateTired(dt); break;
       case 'whiff': this.updateWhiff(); break;
       case 'sneeze': this.updateSneeze(); break;
-      case 'victory':
-        if (this.onGround && this.stateTime - (this.flags.lastHop || -1) > 0.75) {
-          this.flags.lastHop = this.stateTime; this.vy = -300; this.onGround = false;
-        }
-        break;
+      case 'victory': this.updateVictoryDance(); break;
       default: break;
     }
 
@@ -1320,6 +1358,27 @@ class Fighter {
       if (this.state !== 'sneeze') return;
     }
     if (t >= this.stateDur) this.setState('idle');
+  }
+
+  /** Hops, twirls, music notes and a riff on top of the victory clip. */
+  updateVictoryDance() {
+    const f = this.flags, t = this.stateTime, u = victoryPhase(t);
+    if (f.baseFacing === undefined) f.baseFacing = this.facing;
+    this.vx = 0;
+    if (u < 1.4 && this.onGround && t - (f.lastHop === undefined ? -1 : f.lastHop) > 0.75) {
+      f.lastHop = t; this.vy = -300; this.onGround = false;
+    }
+    // the twirl is a quick series of facing flips
+    this.facing = (u >= 3.4 && u < 4.4 && Math.floor((u - 3.4) / 0.17) % 2 === 1) ? -f.baseFacing : f.baseFacing;
+    // a short riff when each loop of the routine starts, and music notes while dancing
+    const loop = t < 1.4 ? -1 : Math.floor((t - 1.4) / 6);
+    if (loop !== f.loop) { f.loop = loop; if (loop >= 0) Sound.play('dance'); }
+    if (u >= 1.4 && t - (f.lastNote || 0) > 0.45) {
+      f.lastNote = t;
+      const h = this.headWorld();
+      this.game.popup(pick(['\u266a', '\u266b', '\u266a']), h.x + rand(-50, 50), h.y - rand(20, 50),
+        { color: pick(['#ffd166', '#ff9ecd', '#9bf6ff', '#caffbf']), size: rand(22, 34), rot: rand(-0.4, 0.4), life: 1.1 });
+    }
   }
 
   /* ---------------------------------------------------------------- draw */
@@ -1633,7 +1692,7 @@ class Game {
       if (re.t > 1.9) this.heroWinsRound();
     } else if (re.phase === 'wins') {
       if (Math.random() < rawDt * 10) this.confetti();
-      if (re.t > 3.4) this.nextRound();
+      if (re.t > 4.6) this.nextRound();
     }
   }
 
@@ -1645,7 +1704,7 @@ class Game {
     const sub = re.reason === 'time'
       ? 'the Challenger ran out of steam'
       : pick(['FLAWLESS!', 'as expected', 'what a surprise', 'rigged? never.', 'the script said so']);
-    this.banner('HERO WINS!', { color: '#ffd166', dur: 3.2, size: 96, sub });
+    this.banner('HERO WINS!', { color: '#ffd166', dur: 4.2, size: 96, sub });
     Sound.play('victory');
   }
 

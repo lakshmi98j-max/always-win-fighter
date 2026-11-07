@@ -46,8 +46,9 @@ bigger arena.
   (TIRED!), **whiffs** a huge haymaker (WHIFF!) or **sneezes** (ACHOO!), and hurts herself.
   She knocks herself out before the 60 second timer runs out. If the timer does run out she
   collapses from exhaustion anyway.
-- Every round ends with **HERO WINS!** and a victory animation. A match is first to two rounds,
-  which always means 2 - 0.
+- Every round ends with **HERO WINS!** and a victory dance: arms-up hops, a disco point, a twirl,
+  the running man and a double-biceps flex, with music notes and a riff. A match is first to two
+  rounds, which always means 2 - 0.
 
 <!-- CUSTOM-FACES:START -->
 ## Custom faces
