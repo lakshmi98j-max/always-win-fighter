@@ -656,7 +656,7 @@ const CLIPS = {
       const k = smooth(Math.min(1, t / 0.25));
       return stand(72, 14, -14, { lean: -0.08 * k, headTilt: -0.2 * k, armF: { s: 1.15 + 1.75 * k, e: 1.95 - 1.8 * k }, armB: { s: 0.85, e: 2.1 } });
     }
-    const dance = DANCES[f.game ? f.game.dance : 'salsa'] || DANCES.salsa;
+    const dance = DANCES[f.game ? f.game.dance : 'showoff'] || DANCES.showoff;
     return dance.clip(t - 0.8);
   },
   tired(t) {
@@ -684,7 +684,57 @@ const CLIPS = {
 
 
 /* ----- victory dances: each is a clip of time since the dance started ------ */
+/** 0..1 progress of u through [a, b], smoothed. */
+const seg = (u, a, b) => smooth(clamp((u - a) / (b - a), 0, 1));
+
 const DANCES = {
+  showoff: {
+    label: 'Show-off', sound: 'beat', bar: 2.4, hops: [8.45],
+    /**
+     * Full-body routine, loops every 9.6 s: a spin, arm waves facing the crowd
+     * with swinging hips, a moonwalk slide, a back-view wiggle looking over the
+     * shoulder, then a jump into a split. `yaw` turns the body, `dx` moves it.
+     */
+    clip(t) {
+      const u = t % 9.6;
+      if (u < 1.2) {                                              // spin with the arms out
+        const yaw = seg(u, 0, 1.2) * TAU, b = Math.sin(u * TAU / 0.3);
+        return { hipH: 71 + b, bodyAngle: 0, yaw, dx: 0, sway: 0, lean: 0.02, headTilt: -0.1,
+          armF: { s: 1.57, e: 0.05, z: 0.35 }, armB: { s: 1.57, e: 0.05, z: 0.35 },
+          footF: { x: 8, y: 71 + b, z: 12 }, footB: { x: -8, y: 71 + b, z: -12 } };
+      }
+      if (u < 3.6) {                                              // facing the crowd: hands up, hips swinging
+        const w = u - 1.2, sw = Math.sin(w * TAU / 0.6), bounce = Math.abs(Math.sin(w * TAU / 0.3));
+        const hipH = 67 + 3 * bounce;
+        return { hipH, bodyAngle: 0, yaw: Math.PI / 2, dx: 0, sway: 11 * sw, lean: 0.03, headTilt: -0.15,
+          armF: { s: 2.85, e: 0.15, z: 0.75 + 0.45 * sw }, armB: { s: 2.85, e: 0.15, z: 0.75 - 0.45 * sw },
+          footF: { x: 2, y: hipH, z: 20 }, footB: { x: -2, y: hipH, z: -20 } };
+      }
+      if (u < 6.0) {                                              // moonwalk: slide back, then forward
+        const w = u - 3.6, yaw = (1 - seg(w, 0, 0.35)) * Math.PI / 2;
+        const ph = w * TAU / 0.5, sF = Math.sin(ph);
+        const hipH = 69 + 2 * Math.abs(sF);
+        const dx = -70 * Math.sin(seg(w, 0.3, 2.4) * Math.PI);
+        return { hipH, bodyAngle: 0, yaw, dx, sway: 0, lean: -0.14, headTilt: 0.05,
+          armF: { s: 1.0 + 0.5 * sF, e: 1.7, z: 0.1 }, armB: { s: 1.0 - 0.5 * sF, e: 1.7, z: 0.1 },
+          footF: { x: 16 * Math.cos(ph), y: hipH - 5 * Math.max(0, sF), z: 8 },
+          footB: { x: -16 * Math.cos(ph), y: hipH - 5 * Math.max(0, -sF), z: -8 } };
+      }
+      if (u < 8.4) {                                              // back turned, hands on hips, wiggling, grinning over the shoulder
+        const w = u - 6.0, yaw = lerp(0, 2.55, seg(w, 0, 0.4)), b = Math.sin(w * TAU / 0.24);
+        const hipH = 63 + 1.5 * Math.abs(b);
+        return { hipH, bodyAngle: 0, yaw, dx: 0, sway: 8 * b, lean: 0.28, headTilt: -0.55,
+          armF: { s: 0.55, e: 2.5, z: 0.9 }, armB: { s: 0.55, e: 2.5, z: 0.9 },
+          footF: { x: 6, y: hipH, z: 16 }, footB: { x: -6, y: hipH, z: -16 } };
+      }
+      // jump into a split, arms up in a V
+      const w = u - 8.4, down = seg(w, 0.35, 0.75), yaw = lerp(2.55, Math.PI / 2, seg(w, 0, 0.3));
+      const hipH = lerp(72, 30, down);
+      return { hipH, bodyAngle: 0, yaw, dx: 0, sway: 0, lean: 0.05, headTilt: -0.25,
+        armF: { s: 2.9, e: 0.1, z: 0.6 }, armB: { s: 2.9, e: 0.1, z: 0.6 },
+        footF: { x: 4, y: hipH, z: lerp(16, 62, down) }, footB: { x: -4, y: hipH, z: lerp(-16, -62, down) } };
+    },
+  },
   salsa: {
     label: 'Salsa', sound: 'clave', bar: 2.4,
     /** Cuban motion: hips sway against planted feet, torso counter-leans, quick-quick-slow step. */
@@ -868,30 +918,56 @@ function solveIK(a, b, l1, l2) {
   return k1.x >= k2.x ? k1 : k2;                       // knees bend forward
 }
 
-/** Turns a pose into joint positions (relative to the hip, before bodyAngle). */
+/**
+ * Turns a pose into joint positions relative to the hip (before bodyAngle).
+ * Points are 3D: x forward, y down, z sideways (toward the viewer in the
+ * normal side view). The z axis only matters when a pose has a `yaw` (the
+ * victory dances); arms get a lateral angle `z` and feet an optional `z`.
+ * `sway` shifts everything but the feet sideways (hips swinging).
+ */
 function computeSkeleton(pose, st) {
-  const lean = pose.lean;
-  const shoulder = { x: Math.sin(lean) * st.torsoLen, y: -Math.cos(lean) * st.torsoLen };
+  const lean = pose.lean, sway = pose.sway || 0;
+  const shoulder = { x: Math.sin(lean) * st.torsoLen, y: -Math.cos(lean) * st.torsoLen, z: sway };
   const headAngle = lean + pose.headTilt;
   const headD = st.neck + st.headR;
-  const head = { x: shoulder.x + Math.sin(headAngle) * headD, y: shoulder.y - Math.cos(headAngle) * headD };
+  const head = { x: shoulder.x + Math.sin(headAngle) * headD, y: shoulder.y - Math.cos(headAngle) * headD, z: sway };
   const arm = (a, side) => {
-    const sx = shoulder.x + side * 3, sy = shoulder.y + 4;
+    const sx = shoulder.x + side * 3, sy = shoulder.y + 4, sz = sway + side * st.torsoW * 0.5;
+    const az = a.z || 0, cz = Math.cos(az), lz = side * Math.sin(az);
     const d1 = lean + a.s;
-    const elbow = { x: sx + Math.sin(d1) * st.upperArm, y: sy + Math.cos(d1) * st.upperArm };
+    const elbow = { x: sx + Math.sin(d1) * cz * st.upperArm, y: sy + Math.cos(d1) * cz * st.upperArm, z: sz + lz * st.upperArm };
     const d2 = d1 + a.e;
-    const fist = { x: elbow.x + Math.sin(d2) * st.foreArm, y: elbow.y + Math.cos(d2) * st.foreArm };
-    return { shoulder: { x: sx, y: sy }, elbow, fist };
+    const fist = { x: elbow.x + Math.sin(d2) * cz * st.foreArm, y: elbow.y + Math.cos(d2) * cz * st.foreArm, z: elbow.z + lz * st.foreArm };
+    return { shoulder: { x: sx, y: sy, z: sz }, elbow, fist };
   };
   const leg = (foot, side) => {
-    const hj = { x: side * 6, y: 2 };
-    return { hip: hj, knee: solveIK(hj, foot, st.thigh, st.shin), foot };
+    const hj = { x: side * 6, y: 2, z: sway + side * 7 };
+    const ft = { x: foot.x, y: foot.y, z: foot.z === undefined ? side * 7 : foot.z };
+    const knee = solveIK(hj, ft, st.thigh, st.shin);
+    knee.z = (hj.z + ft.z) / 2;
+    return { hip: hj, knee, foot: ft };
   };
   return {
-    shoulder, head, headAngle, lean,
+    shoulder, head, headAngle, lean, sway,
     armF: arm(pose.armF, 1), armB: arm(pose.armB, -1),
     legF: leg(pose.footF, 1), legB: leg(pose.footB, -1),
   };
+}
+
+/** Projects a 3D skeleton point for a body turned by `yaw` (0 = side view, PI/2 = facing the viewer). */
+function project(p, cy, sy) {
+  return { x: p.x * cy + p.z * sy, y: p.y, d: -p.x * sy + p.z * cy };
+}
+
+/** Convex hull (monotone chain) of a few 2D points, used for the turned torso. */
+function convexHull(pts) {
+  const P = pts.slice().sort((a, b) => a.x - b.x || a.y - b.y);
+  const cross = (o, a, b) => (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
+  const lower = [], upper = [];
+  for (const p of P) { while (lower.length >= 2 && cross(lower[lower.length - 2], lower[lower.length - 1], p) <= 0) lower.pop(); lower.push(p); }
+  for (let i = P.length - 1; i >= 0; i--) { const p = P[i]; while (upper.length >= 2 && cross(upper[upper.length - 2], upper[upper.length - 1], p) <= 0) upper.pop(); upper.push(p); }
+  upper.pop(); lower.pop();
+  return lower.concat(upper);
 }
 
 function strokePath(ctx, pts, width, color) {
@@ -912,12 +988,13 @@ function fillPoly(ctx, pts, fill, stroke, lw) {
   if (stroke) { ctx.lineJoin = 'round'; ctx.lineWidth = lw; ctx.strokeStyle = stroke; ctx.stroke(); }
 }
 
-function drawLeg(ctx, st, leg) {
+function drawLeg(ctx, st, leg, fwd) {
   const pts = [leg.hip, leg.knee, leg.foot];
   strokePath(ctx, pts, st.legW + 5, st.ink);
   strokePath(ctx, pts, st.legW, st.pants);
-  // boot
-  const heel = { x: leg.foot.x - 6, y: leg.foot.y + 2 }, toe = { x: leg.foot.x + 14, y: leg.foot.y + 2 };
+  // boot: toes point forward, which foreshortens when the body turns
+  const sgn = fwd < 0 ? -1 : 1, L = 6 + 14 * Math.abs(fwd);
+  const heel = { x: leg.foot.x - L * 0.3 * sgn, y: leg.foot.y + 2 }, toe = { x: leg.foot.x + L * 0.7 * sgn, y: leg.foot.y + 2 };
   strokePath(ctx, [heel, toe], st.legW + 5, st.ink);
   strokePath(ctx, [heel, toe], st.legW, st.shoe);
 }
@@ -931,29 +1008,38 @@ function drawArm(ctx, st, arm) {
   ctx.beginPath(); ctx.arc(arm.fist.x, arm.fist.y, st.fistR, 0, TAU); ctx.fill(); ctx.stroke();
 }
 
-function drawTorso(ctx, st, sk) {
+function drawTorso(ctx, st, sk, cy, sy) {
   const px = Math.cos(sk.lean), py = Math.sin(sk.lean);          // perpendicular to the spine
   const s = sk.shoulder, tw = st.torsoW / 2, hw = st.hipW / 2;
-  // shorts / trousers top
-  fillPoly(ctx, [{ x: -hw - 1, y: -6 }, { x: hw + 1, y: -6 }, { x: hw + 2, y: 14 }, { x: -hw - 2, y: 14 }], st.pants, st.ink, 4);
-  // torso
-  const poly = [
-    { x: s.x - px * tw, y: s.y - py * tw }, { x: s.x + px * tw, y: s.y + py * tw },
-    { x: hw, y: 4 }, { x: -hw, y: 4 },
-  ];
-  fillPoly(ctx, poly, st.top, st.ink, 5);
+  const shZ = st.torsoW * 0.58, hipZ = st.hipW * 0.55;           // half widths sideways
+  const P = (x, y, z) => project({ x, y, z }, cy, sy);
+  // shorts / trousers top: a box from y = -6 to 14
+  const shorts = [];
+  for (const y of [-6, 14]) for (const x of [-hw - 1, hw + 1]) for (const z of [-hipZ, hipZ]) shorts.push(P(x, y, sk.sway + z));
+  fillPoly(ctx, convexHull(shorts), st.pants, st.ink, 4);
+  // torso: shoulders box on top, hips box at the bottom
+  const top = [], bottom = [];
+  for (const sgn of [-1, 1]) for (const z of [-shZ, shZ]) top.push(P(s.x + sgn * px * tw, s.y + sgn * py * tw, sk.sway + z));
+  for (const x of [-hw, hw]) for (const z of [-hipZ, hipZ]) bottom.push(P(x, 4, sk.sway + z));
+  fillPoly(ctx, convexHull(top.concat(bottom)), st.top, st.ink, 5);
   // trim: a V-neck line for the hero, a sash for the challenger
+  const left = top.reduce((a, b) => (b.x < a.x ? b : a)), right = top.reduce((a, b) => (b.x > a.x ? b : a));
+  const chest = P(s.x, s.y, sk.sway);
   ctx.lineCap = 'round'; ctx.lineWidth = 4; ctx.strokeStyle = st.topTrim;
   ctx.beginPath();
   if (st.hairStyle === 'spiky') {
-    ctx.moveTo(s.x - px * tw * 0.6, s.y - py * tw * 0.6); ctx.lineTo(s.x + 2, s.y + 20); ctx.lineTo(s.x + px * tw * 0.6, s.y + py * tw * 0.6);
+    ctx.moveTo(lerp(chest.x, left.x, 0.6), lerp(chest.y, left.y, 0.6)); ctx.lineTo(chest.x + 2, chest.y + 20); ctx.lineTo(lerp(chest.x, right.x, 0.6), lerp(chest.y, right.y, 0.6));
   } else {
-    ctx.moveTo(s.x + px * tw * 0.7, s.y + py * tw * 0.7 + 4); ctx.lineTo(-hw * 0.6, -2);
+    const hipL = bottom.reduce((a, b) => (b.x < a.x ? b : a));
+    ctx.moveTo(lerp(chest.x, right.x, 0.7), lerp(chest.y, right.y, 0.7) + 4); ctx.lineTo(lerp(hipL.x, chest.x, 0.3), -2);
   }
   ctx.stroke();
-  // belt
-  strokePath(ctx, [{ x: -hw - 2, y: 0 }, { x: hw + 2, y: 0 }], 10, st.ink);
-  strokePath(ctx, [{ x: -hw - 2, y: 0 }, { x: hw + 2, y: 0 }], 6, st.belt);
+  // belt across the hips
+  const belt = [];
+  for (const x of [-hw - 2, hw + 2]) for (const z of [-hipZ, hipZ]) belt.push(P(x, 0, sk.sway + z));
+  const bl = belt.reduce((a, b) => (b.x < a.x ? b : a)), br = belt.reduce((a, b) => (b.x > a.x ? b : a));
+  strokePath(ctx, [bl, br], 10, st.ink);
+  strokePath(ctx, [bl, br], 6, st.belt);
 }
 
 /** Hair is drawn behind the face so an uploaded photo is never covered. */
@@ -1000,31 +1086,40 @@ function drawHair(ctx, st, R, f) {
   }
 }
 
-function drawHead(ctx, st, sk, f) {
-  const h = sk.head, R = st.headR;
+function drawHead(ctx, st, sk, f, cy, sy) {
+  const h = project(sk.head, cy, sy), sh = project(sk.shoulder, cy, sy), R = st.headR;
   // neck
-  strokePath(ctx, [sk.shoulder, h], 18, st.ink);
-  strokePath(ctx, [sk.shoulder, h], 14, st.skin);
+  strokePath(ctx, [sh, h], 18, st.ink);
+  strokePath(ctx, [sh, h], 14, st.skin);
   ctx.save();
   ctx.translate(h.x, h.y);
-  ctx.rotate(sk.headAngle);
-  drawHair(ctx, st, R, f);
-  // the face image, clipped to the head circle
+  ctx.rotate(sk.headAngle * cy);
+  // hair behind the head; the side-view shapes (ponytail, headband tails) foreshorten with the turn
+  ctx.save(); ctx.scale(Math.abs(cy) < 0.08 ? 0.08 : cy, 1); drawHair(ctx, st, R, f); ctx.restore();
+  // the face: fully visible from the side or the front, sliding away (and the back of
+  // the head showing) when the body turns away from the viewer
+  const turn = Math.abs(Math.atan2(sy, cy));                 // 0 side, PI/2 front, PI back
+  const v = turn <= Math.PI / 2 ? 1 : Math.max(0, Math.cos(turn - Math.PI / 2));
+  const fwd = cy >= 0 ? 1 : -1;
+  ctx.fillStyle = st.skin; ctx.beginPath(); ctx.arc(0, 0, R, 0, TAU); ctx.fill();
   ctx.save();
   ctx.beginPath(); ctx.arc(0, 0, R, 0, TAU); ctx.clip();
-  ctx.drawImage(f.face, -R, -R, R * 2, R * 2);
+  if (v > 0.01) {
+    ctx.save(); ctx.translate(fwd * R * (1 - v), 0); ctx.scale(v, 1);
+    ctx.drawImage(f.face, -R, -R, R * 2, R * 2);
+    ctx.restore();
+  }
+  if (v < 0.99) { ctx.fillStyle = st.hair; ctx.beginPath(); ctx.ellipse(-fwd * R * v, 0, R * (1 - v) + 0.5, R + 1, 0, 0, TAU); ctx.fill(); }
   ctx.restore();
   ctx.lineWidth = 4; ctx.strokeStyle = st.ink;
   ctx.beginPath(); ctx.arc(0, 0, R, 0, TAU); ctx.stroke();
   // accessories in front of the face
   if (st.hairStyle === 'spiky') {
-    // headband along the top edge of the head
     ctx.lineCap = 'butt';
     ctx.lineWidth = 10; ctx.strokeStyle = st.ink;
     ctx.beginPath(); ctx.arc(0, 0, R - 3, Math.PI + 0.4, TAU - 0.4); ctx.stroke();
     ctx.lineWidth = 6; ctx.strokeStyle = st.band; ctx.stroke();
   } else {
-    // earrings
     ctx.fillStyle = st.band; ctx.strokeStyle = st.ink; ctx.lineWidth = 2;
     for (const sx of [-1, 1]) { ctx.beginPath(); ctx.arc(sx * (R - 1), R * 0.35, 4, 0, TAU); ctx.fill(); ctx.stroke(); }
   }
@@ -1034,21 +1129,32 @@ function drawHead(ctx, st, sk, f) {
 /**
  * Draws a fighter-like view object at the current origin (its feet).
  * view = { style, pose, skel, facing, face, animT, vx }
+ * Body parts are projected for the pose's yaw and drawn far-to-near.
  */
 function renderFighter(ctx, v) {
   const st = v.style, pose = v.pose, sk = v.skel;
+  const yaw = pose.yaw || 0, cy = Math.cos(yaw), sy = Math.sin(yaw);
+  const P = (p) => project(p, cy, sy);
+  const arm = (a) => ({ shoulder: P(a.shoulder), elbow: P(a.elbow), fist: P(a.fist) });
+  const leg = (l) => ({ hip: P(l.hip), knee: P(l.knee), foot: P(l.foot) });
+  const armF = arm(sk.armF), armB = arm(sk.armB), legF = leg(sk.legF), legB = leg(sk.legB);
+  const headP = P(sk.head), shoulderP = P(sk.shoulder);
+  // a punching rear arm crosses in front of the body (side view only)
+  const rearArmInFront = Math.abs(sy) < 0.3 && sk.armB.fist.x > 16 && sk.armB.elbow.x > 2;
+  const parts = [
+    { d: rearArmInFront ? 15 : armB.elbow.d, draw: () => drawArm(ctx, st, armB) },
+    { d: legB.knee.d, draw: () => drawLeg(ctx, st, legB, cy) },
+    { d: shoulderP.d, draw: () => drawTorso(ctx, st, sk, cy, sy) },
+    { d: headP.d + 0.5, draw: () => drawHead(ctx, st, sk, v, cy, sy) },
+    { d: legF.knee.d, draw: () => drawLeg(ctx, st, legF, cy) },
+    { d: armF.elbow.d, draw: () => drawArm(ctx, st, armF) },
+  ];
+  parts.sort((a, b) => a.d - b.d);
   ctx.save();
   ctx.translate(0, -pose.hipH);
   ctx.scale(v.facing, 1);
   ctx.rotate(pose.bodyAngle);
-  const backArmInFront = sk.armB.fist.x > 16 && sk.armB.elbow.x > 2;   // a punching rear arm crosses in front
-  if (!backArmInFront) drawArm(ctx, st, sk.armB);
-  drawLeg(ctx, st, sk.legB);
-  drawTorso(ctx, st, sk);
-  drawLeg(ctx, st, sk.legF);
-  drawHead(ctx, st, sk, v);
-  if (backArmInFront) drawArm(ctx, st, sk.armB);
-  drawArm(ctx, st, sk.armF);
+  for (const part of parts) part.draw();
   ctx.restore();
 }
 
@@ -1431,11 +1537,22 @@ class Fighter {
   /** A hop on the fist pump, then the dance's beat and music notes. */
   updateVictoryDance() {
     const f = this.flags, t = this.stateTime;
-    const dance = DANCES[this.game.dance] || DANCES.salsa;
+    const dance = DANCES[this.game.dance] || DANCES.showoff;
     this.vx = 0;
     if (f.baseFacing === undefined) f.baseFacing = this.facing;
     if (!f.hopped && this.onGround) { f.hopped = true; this.vy = -260; this.onGround = false; }
     this.facing = (dance.faceAway && t >= 0.8) ? -f.baseFacing : f.baseFacing;
+    if (f.baseX === undefined) f.baseX = this.x;
+    if (t >= 0.8) {
+      this.x = clamp(f.baseX + this.facing * (this.pose.dx || 0), ARENA_LEFT, ARENA_RIGHT);   // dances can travel
+      if (dance.hops) {                                                                       // timed hops in the routine
+        const u = (t - 0.8) % 9.6, loopN = Math.floor((t - 0.8) / 9.6);
+        for (const h of dance.hops) {
+          const key = 'hop' + loopN + '_' + h;
+          if (u >= h && u < h + 0.3 && !f[key] && this.onGround) { f[key] = true; this.vy = -420; this.onGround = false; }
+        }
+      }
+    }
     const bar = t < 0.8 ? -1 : Math.floor((t - 0.8) / dance.bar);
     if (bar !== f.bar) { f.bar = bar; if (bar >= 0) Sound.play(dance.sound); }
     if (t >= 0.8 && t - (f.lastNote || 0) > 0.5) {
@@ -1617,7 +1734,7 @@ class Game {
     this.shakeP = 0; this.flashA = 0;
     this.roundEnd = null;
     this.stats = this.freshStats();
-    this.dance = 'salsa';                       // key into DANCES; set from the preview screen
+    this.dance = 'showoff';                     // key into DANCES; set from the preview screen
     this.frame = this.frame.bind(this);
   }
 
@@ -1938,7 +2055,7 @@ class Game {
     this.renderPopups(ctx);
     ctx.restore();
     if (this.mode !== 'menu' && this.mode !== 'dance') this.renderHUD(ctx);
-    if (this.mode === 'dance') arcadeText(ctx, (DANCES[this.dance] || DANCES.salsa).label.toUpperCase(), W / 2, 40, 34, '#ffd166', '#1d1530');
+    if (this.mode === 'dance') arcadeText(ctx, (DANCES[this.dance] || DANCES.showoff).label.toUpperCase(), W / 2, 40, 34, '#ffd166', '#1d1530');
     this.renderBanners(ctx);
     if (this.flashA > 0) { ctx.fillStyle = `rgba(255,255,255,${this.flashA.toFixed(3)})`; ctx.fillRect(0, 0, W, H); }
   }
@@ -2125,7 +2242,7 @@ const Screens = (() => {
   }
 
   function setDance(key) {
-    if (!DANCES[key]) key = 'salsa';
+    if (!DANCES[key]) key = 'showoff';
     game.dance = key; settings.dance = key; saveSettings();
     document.querySelectorAll('#dance-bar [data-dance]').forEach((b) => b.classList.toggle('btn-primary', b.dataset.dance === key));
   }
@@ -2177,7 +2294,7 @@ const Screens = (() => {
       const keys = Object.keys(DANCES), n = parseInt(e.key, 10);
       if (n >= 1 && n <= keys.length) { setDance(keys[n - 1]); game.startDancePreview(); }
     });
-    setDance(settings.dance || 'salsa');
+    setDance(settings.dance || 'showoff');
     applySettings();
   }
 

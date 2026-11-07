@@ -30,7 +30,7 @@ sprite is drawn in code and every sound is synthesised with the Web Audio API.
 
 The **Victory dance** button on the start screen (or adding `?dance` to the URL) shows the
 Hero's victory dance without playing a match, with a picker to choose the routine he uses:
-salsa, hip wiggle, arm swing, butt shake, shuffle with points, or chicken. The choice is
+show-off, salsa, hip wiggle, arm swing, butt shake, shuffle with points, or chicken. The choice is
 remembered in this browser. `?dance=chicken` opens the preview on a given routine.
 
 On-screen touch buttons appear automatically on phones and tablets. They can be forced on or
@@ -51,9 +51,10 @@ bigger arena.
   (TIRED!), **whiffs** a huge haymaker (WHIFF!) or **sneezes** (ACHOO!), and hurts herself.
   She knocks herself out before the 60 second timer runs out. If the timer does run out she
   collapses from exhaustion anyway.
-- Every round ends with **HERO WINS!** and a victory dance: a fist pump, then a little salsa with
-  swaying hips, a quick-quick-slow step and a clave rhythm. A match is first to two rounds, which
-  always means 2 - 0.
+- Every round ends with **HERO WINS!** and a victory dance. The default "Show-off" routine turns
+  him all the way round: a spin, arms up facing the crowd with his hips swinging, a moonwalk
+  slide, a back-view wiggle grinning over his shoulder and a jump into a split. A match is first
+  to two rounds, which always means 2 - 0.
 
 <!-- CUSTOM-FACES:START -->
 ## Custom faces
@@ -132,7 +133,10 @@ Copy the `always-win-fighter/` folder into the site and it works at
 - **Game loop**: `requestAnimationFrame` at the display rate (normally 60 FPS) with a clamped
   delta time, a short "hit stop" freeze on impact and slow motion on the K.O.
 - **Fighters** are small skeletons. A *pose* stores the hip height, body rotation, torso lean,
-  arm angles and foot positions; knees are solved with two-bone inverse kinematics. Animation
+  arm angles and foot positions; knees are solved with two-bone inverse kinematics. Joints are
+  3D (arms and legs have sideways positions), so a pose can also turn the body with a `yaw`:
+  parts are projected and drawn far to near, the torso is a projected box, and the face slides
+  around the head as he turns. The fights stay in side view; the dances use the turning. Animation
   *clips* are either keyframe lists or small procedural functions (walk cycle, idle breathing,
   victory hops) and the game blends smoothly between them when the state changes.
 - **Hit detection** is a circle at the punching fist (or kicking foot) during the attack's
