@@ -39,8 +39,8 @@ bigger arena.
 
 ### The fighters
 
-- **The Hero** (player 1): swept-back hair, red headband, hand wraps, a plaster on his cheek and
-  some stubble. Record 999 - 0.
+- **The Hero** (player 1): short tousled black hair, a trimmed beard, thick brows, a red headband,
+  hand wraps and a charcoal jacket over a blue tee. Record 999 - 0.
 - **The Challenger** (computer): long hair, fingerless gloves, trained for years, trips a lot.
   Record 0 - 999.
 
