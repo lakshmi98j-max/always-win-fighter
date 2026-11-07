@@ -179,10 +179,11 @@ const Sound = (() => {
       });
     },
     dance()  {
-      [392, 523, 659, 523, 784, 659, 1046].forEach((f, i) => {
-        tone({ type: 'square', f0: f, dur: 0.1, vol: 0.12, delay: i * 0.14 });
-        tone({ type: 'triangle', f0: f / 4, f1: f / 8, dur: 0.12, vol: 0.2, delay: i * 0.14 });
-      });
+      // one bar of 3-2 son clave on a woodblock, with a tumbao-ish bass underneath (16 eighths of 0.15 s)
+      const e = 0.15;
+      for (const i of [0, 3, 6, 10, 12]) tone({ type: 'square', f0: 1900, f1: 1300, dur: 0.035, vol: 0.14, delay: i * e });
+      for (const i of [0, 3, 6, 8, 11, 14]) tone({ type: 'triangle', f0: i % 6 === 0 ? 98 : 131, f1: 70, dur: 0.16, vol: 0.22, delay: i * e });
+      for (let i = 0; i < 16; i += 2) noise({ dur: 0.03, vol: 0.05, type: 'highpass', f0: 6000, delay: i * e + 0.075 });
     },
     trip()   { tone({ f0: 900, f1: 150, dur: 0.45, vol: 0.22 }); },                       // slide whistle
     thud()   { noise({ dur: 0.12, vol: 0.5, type: 'lowpass', f0: 500, f1: 80 }); tone({ f0: 90, f1: 40, dur: 0.15, vol: 0.5 }); },
@@ -605,9 +606,6 @@ const SNEEZE_KF = keyframes([
   { t: 1.4, pose: IDLE_POSE },
 ]);
 
-/** Maps time in the victory state onto the dance routine (hops once, then a 6 s loop). */
-function victoryPhase(t) { return t < 1.4 ? t : 1.4 + ((t - 1.4) % 6); }
-
 const CLIPS = {
   idle(t) {
     const b = Math.sin(t * 3.2);
@@ -645,45 +643,32 @@ const CLIPS = {
     return stand(72, 14, -16, { lean: -0.08 + b * 0.03, headTilt: -0.1 + b * 0.08, armF: { s: 0.55, e: 2.5 }, armB: { s: 0.55, e: 2.5 } });
   },
   /**
-   * The victory dance. 1.4 s of arms-up hops, then a 6 s routine that loops:
-   * disco point, twirl, running man, biceps flex. See victoryPhase().
+   * The victory dance: a quick fist pump, then a small salsa. The hips sway
+   * forward and back against planted feet (Cuban motion) while the torso
+   * counter-leans so the head stays put, with a quick-quick-slow basic step,
+   * bent arms swinging opposite the hips, and a hand "shine" every few bars.
    */
   victory(t) {
-    const u = victoryPhase(t);
-    if (u < 1.4) {                                            // arms-up hops
-      const ph = t * 7, hop = Math.max(0, Math.sin(ph));
-      return stand(74, 14, -14, {
-        lean: -0.1, headTilt: -0.25,
-        armF: { s: 2.9 + 0.12 * Math.sin(ph), e: 0.15 }, armB: { s: 2.7 - 0.12 * Math.sin(ph), e: 0.25 },
-        footF: { x: 14, y: 74 - hop * 10 }, footB: { x: -14, y: 74 },
-      });
+    if (t < 0.8) {                                            // one fist pump
+      const k = smooth(Math.min(1, t / 0.25));
+      return stand(72, 14, -14, { lean: -0.08 * k, headTilt: -0.2 * k, armF: { s: 1.15 + 1.75 * k, e: 1.95 - 1.8 * k }, armB: { s: 0.85, e: 2.1 } });
     }
-    if (u < 3.4) {                                            // disco point: one arm up, one down, hips swaying
-      const ph = (u - 1.4) * TAU / 0.5, sw = Math.sin(ph), up = sw > 0;
-      const hipH = 70 + Math.abs(sw) * 2;
-      return stand(hipH, 16 + 8 * sw, -16 + 8 * sw, {
-        lean: 0.15 * sw, headTilt: -0.15 - 0.1 * sw,
-        armF: up ? { s: 2.7, e: -0.2 } : { s: 0.5, e: 0.2 },
-        armB: up ? { s: 0.5, e: 0.2 } : { s: 2.7, e: -0.2 },
-      });
-    }
-    if (u < 4.4) {                                            // twirl: arms out (the facing flips in Fighter.update)
-      const b = Math.sin((u - 3.4) * TAU * 3);
-      return stand(72 + b, 10, -10, { lean: 0.02, headTilt: -0.1, armF: { s: 1.6, e: 0.1 }, armB: { s: 1.5, e: 0.1 } });
-    }
-    if (u < 6.4) {                                            // running man
-      const ph = (u - 4.4) * TAU / 0.45, sF = Math.sin(ph);
-      const hipH = 68 + Math.abs(sF) * 3;
-      return {
-        hipH, bodyAngle: 0, lean: -0.12, headTilt: -0.1,
-        armF: { s: 1.3 + 0.6 * sF, e: 1.6 }, armB: { s: 1.3 - 0.6 * sF, e: 1.6 },
-        footF: { x: 20 * Math.cos(ph) + 2, y: hipH - Math.max(0, -sF) * 22 },
-        footB: { x: -20 * Math.cos(ph) - 2, y: hipH - Math.max(0, sF) * 22 },
-      };
-    }
-    // double-biceps flex for the crowd: one arm forward, one back, forearms up
-    const b = Math.sin((u - 6.4) * TAU * 2);
-    return stand(70 + b, 20, -20, { lean: 0.05, headTilt: -0.2 + 0.05 * b, armF: { s: 1.5, e: 1.5 + 0.12 * b }, armB: { s: -1.5, e: -1.5 - 0.12 * b } });
+    const u = t - 0.8;
+    const sway = Math.sin(u * TAU / 0.6);                     // hips: one sway per two beats
+    const hipShift = 9 * sway;                                // hips forward / back, feet stay planted
+    const hipH = 70 + 1.5 * Math.abs(sway) + 0.8 * Math.sin(u * TAU / 0.3);
+    const step = Math.sin(u * TAU / 1.2);                     // basic step: forward, back
+    const stepVel = Math.cos(u * TAU / 1.2);                  // feet lift a little while they move
+    const shine = (u % 4.8) > 3.9 ? smooth(Math.min(1, ((u % 4.8) - 3.9) / 0.2)) : 0;
+    return {
+      hipH, bodyAngle: 0,
+      lean: -0.13 * sway + 0.03 * shine,
+      headTilt: 0.09 * sway - 0.12 * shine,
+      armF: shine ? { s: lerp(0.95 + 0.45 * sway, 2.55, shine), e: lerp(1.9, 0.35, shine) } : { s: 0.95 + 0.45 * sway, e: 1.9 },
+      armB: { s: 0.95 - 0.45 * sway, e: 1.9 },
+      footF: { x: 14 + 9 * step - hipShift, y: hipH - 4 * Math.max(0, stepVel) },
+      footB: { x: -16 - 9 * step - hipShift, y: hipH - 4 * Math.max(0, -stepVel) },
+    };
   },
   tired(t) {
     const b = Math.sin(t * 9);
@@ -1360,24 +1345,18 @@ class Fighter {
     if (t >= this.stateDur) this.setState('idle');
   }
 
-  /** Hops, twirls, music notes and a riff on top of the victory clip. */
+  /** A hop on the fist pump, then clave clicks and music notes while the salsa plays. */
   updateVictoryDance() {
-    const f = this.flags, t = this.stateTime, u = victoryPhase(t);
-    if (f.baseFacing === undefined) f.baseFacing = this.facing;
+    const f = this.flags, t = this.stateTime;
     this.vx = 0;
-    if (u < 1.4 && this.onGround && t - (f.lastHop === undefined ? -1 : f.lastHop) > 0.75) {
-      f.lastHop = t; this.vy = -300; this.onGround = false;
-    }
-    // the twirl is a quick series of facing flips
-    this.facing = (u >= 3.4 && u < 4.4 && Math.floor((u - 3.4) / 0.17) % 2 === 1) ? -f.baseFacing : f.baseFacing;
-    // a short riff when each loop of the routine starts, and music notes while dancing
-    const loop = t < 1.4 ? -1 : Math.floor((t - 1.4) / 6);
-    if (loop !== f.loop) { f.loop = loop; if (loop >= 0) Sound.play('dance'); }
-    if (u >= 1.4 && t - (f.lastNote || 0) > 0.45) {
+    if (!f.hopped && this.onGround) { f.hopped = true; this.vy = -260; this.onGround = false; }
+    const bar = t < 0.8 ? -1 : Math.floor((t - 0.8) / 2.4);     // one clave pattern per 2.4 s bar
+    if (bar !== f.bar) { f.bar = bar; if (bar >= 0) Sound.play('dance'); }
+    if (t >= 0.8 && t - (f.lastNote || 0) > 0.5) {
       f.lastNote = t;
       const h = this.headWorld();
       this.game.popup(pick(['\u266a', '\u266b', '\u266a']), h.x + rand(-50, 50), h.y - rand(20, 50),
-        { color: pick(['#ffd166', '#ff9ecd', '#9bf6ff', '#caffbf']), size: rand(22, 34), rot: rand(-0.4, 0.4), life: 1.1 });
+        { color: pick(['#ffd166', '#ff9ecd', '#9bf6ff', '#caffbf']), size: rand(20, 30), rot: rand(-0.4, 0.4), life: 1.1 });
     }
   }
 
