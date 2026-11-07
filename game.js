@@ -1601,6 +1601,14 @@ class Game {
         this.updateFighters(dt, false);
         if (Math.random() < rawDt * 6) this.confetti();
         break;
+      case 'dance':                                    // victory dance preview from the start screen
+        this.updateFighters(dt, false);
+        if (Math.random() < rawDt * 6) this.confetti();
+        if ((this.modeT > 0.5 && (Input.pressed('start') || Input.pressed('jab') || Input.pressed('power') || this.introTap)) || Input.pressed('pause')) {
+          this.introTap = false;
+          this.goMenu();
+        }
+        break;
       default: break;
     }
     this.updateEffects(rawDt);
@@ -1644,6 +1652,19 @@ class Game {
     this.introTap = false;
     this.setMode('intro');
     Sound.play('round');
+  }
+
+  /** Shows the victory dance without playing a match (start screen button, or ?dance in the URL). */
+  startDancePreview() {
+    this.paused = false;
+    this.hero.reset(430, 1); this.challenger.reset(700, -1);
+    this.challenger.knockOut();
+    this.hero.setState('victory');
+    this.particles.length = 0; this.popups.length = 0; this.banners.length = 0;
+    this.introTap = false;
+    this.setMode('dance');
+    this.banner('HERO WINS!', { color: '#ffd166', dur: 4.2, size: 96, sub: 'victory dance preview' });
+    Sound.play('victory');
   }
 
   startMatch() {
@@ -1853,7 +1874,8 @@ class Game {
     this.renderParticles(ctx);
     this.renderPopups(ctx);
     ctx.restore();
-    if (this.mode !== 'menu') this.renderHUD(ctx);
+    if (this.mode !== 'menu' && this.mode !== 'dance') this.renderHUD(ctx);
+    if (this.mode === 'dance' && Math.floor(this.time * 2) % 2 === 0) arcadeText(ctx, 'PRESS ANY KEY OR TAP TO GO BACK', W / 2, H - 36, 24, '#fff', '#1d1530');
     this.renderBanners(ctx);
     if (this.flashA > 0) { ctx.fillStyle = `rgba(255,255,255,${this.flashA.toFixed(3)})`; ctx.fillRect(0, 0, W, H); }
   }
@@ -2067,7 +2089,8 @@ const Screens = (() => {
       else if (game.mode === 'match_end' && !$('screen-victory').classList.contains('hidden')) game.startMatch();
     });
     // Tapping the arena skips the VS screen.
-    game.canvas.addEventListener('pointerdown', () => { if (game.mode === 'intro') game.introTap = true; });
+    game.canvas.addEventListener('pointerdown', () => { if (game.mode === 'intro' || game.mode === 'dance') game.introTap = true; });
+    $('btn-dance').addEventListener('click', () => { Sound.unlock(); Sound.play('ui'); game.startDancePreview(); });
     applySettings();
   }
 
@@ -2312,6 +2335,7 @@ function boot() {
   FaceCustomizer.init(game);
   // CUSTOM-FACES:END
   game.start();
+  if (/[?&]dance\b/.test(location.search)) game.startDancePreview();
   window.AWF = game;                                      // handy for poking at the game from the console
 }
 

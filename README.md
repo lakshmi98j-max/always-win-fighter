@@ -28,6 +28,9 @@ sprite is drawn in code and every sound is synthesised with the Web Audio API.
 | Pause | `P` or `Esc` | ❚❚ button under the timer |
 | Start / confirm / play again | `Enter` or `Space` | tap |
 
+The **Victory dance** button on the start screen (or adding `?dance` to the URL) shows the
+Hero's victory dance without playing a match.
+
 On-screen touch buttons appear automatically on phones and tablets. They can be forced on or
 off with the "Touch controls" button on the start screen. Rotate the phone sideways for a
 bigger arena.
