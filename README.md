@@ -39,8 +39,10 @@ bigger arena.
 
 ### The fighters
 
-- **The Hero** (player 1): spiky hair, red headband, a plaster on his cheek. Record 999 - 0.
-- **The Challenger** (computer): trained for years, trips a lot. Record 0 - 999.
+- **The Hero** (player 1): swept-back hair, red headband, hand wraps, a plaster on his cheek and
+  some stubble. Record 999 - 0.
+- **The Challenger** (computer): long hair, fingerless gloves, trained for years, trips a lot.
+  Record 0 - 999.
 
 ### How the fight is rigged
 
@@ -132,8 +134,10 @@ Copy the `always-win-fighter/` folder into the site and it works at
 
 - **Game loop**: `requestAnimationFrame` at the display rate (normally 60 FPS) with a clamped
   delta time, a short "hit stop" freeze on impact and slow motion on the K.O.
-- **Fighters** are small skeletons. A *pose* stores the hip height, body rotation, torso lean,
-  arm angles and foot positions; knees are solved with two-bone inverse kinematics. Joints are
+- **Fighters** are small skeletons drawn as tapered, shaded limbs with rounded joints, fists,
+  shoes, a shaped torso (shoulders, waist, hips) and hair. A *pose* stores the hip height, body
+  rotation, torso lean, arm angles and foot positions; knees are solved with two-bone inverse
+  kinematics. Joints are
   3D (arms and legs have sideways positions), so a pose can also turn the body with a `yaw`:
   parts are projected and drawn far to near, the torso is a projected box, and the face slides
   around the head as he turns. The fights stay in side view; the dances use the turning. Animation
