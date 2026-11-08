@@ -45,6 +45,10 @@ const BG_SCALE = 3;                 // background drawn at 1/3 resolution for a 
 const IDLE_PLAYER_SECONDS = 4;      // no attack input for this long = "player is doing nothing"
 const TAU = Math.PI * 2;
 
+/** Birthday edition settings from assets/birthday.js (null = the plain game). */
+const BDAY = (typeof window !== 'undefined' && window.AWF_BIRTHDAY) || null;
+const bdayLine = (key, fallback) => (BDAY && BDAY.lines && BDAY.lines[key]) || fallback;
+
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const lerp = (a, b, t) => a + (b - a) * t;
 const rand = (a, b) => a + Math.random() * (b - a);
@@ -208,15 +212,30 @@ const Sound = (() => {
     sneeze() { noise({ dur: 0.08, vol: 0.2, f0: 1500, f1: 2500, attack: 0.05 }); noise({ dur: 0.18, vol: 0.45, f0: 2500, f1: 400, delay: 0.1 }); tone({ type: 'sawtooth', f0: 700, f1: 200, dur: 0.2, vol: 0.12, delay: 0.1 }); },
     dizzy()  { for (let i = 0; i < 4; i++) tone({ f0: 600 + i * 80, f1: 500 + i * 80, dur: 0.12, vol: 0.08, delay: i * 0.12 }); },
     ui()     { tone({ type: 'square', f0: 880, dur: 0.05, vol: 0.08 }); },
+    /** "Happy Birthday" (public domain), full = the whole song, else the first phrase. */
+    birthday(full) {
+      const N = { G4: 392, A4: 440, B4: 494, C5: 523, D5: 587, E5: 659, F5: 698, G5: 784 };
+      const song = [['G4', 0.5], ['G4', 0.5], ['A4', 1], ['G4', 1], ['C5', 1], ['B4', 2],
+        ['G4', 0.5], ['G4', 0.5], ['A4', 1], ['G4', 1], ['D5', 1], ['C5', 2],
+        ['G4', 0.5], ['G4', 0.5], ['G5', 1], ['E5', 1], ['C5', 1], ['B4', 1], ['A4', 2],
+        ['F5', 0.5], ['F5', 0.5], ['E5', 1], ['C5', 1], ['D5', 1], ['C5', 2]];
+      const beat = 0.32; let t = 0;
+      for (const [n, len] of (full ? song : song.slice(0, 6))) {
+        tone({ type: 'triangle', f0: N[n], dur: len * beat * 0.9, vol: 0.22, delay: t });
+        tone({ type: 'square', f0: N[n] / 2, dur: len * beat * 0.9, vol: 0.06, delay: t });
+        t += len * beat;
+      }
+      return t;
+    },
     plot()   { tone({ type: 'triangle', f0: 1046, f1: 1568, dur: 0.2, vol: 0.15 }); },     // "plot armor" chime
   };
 
   return {
     /** Call from a user gesture (key press, tap): creates or resumes the AudioContext. */
     unlock() { unlocked = true; try { ensure(); } catch (e) { /* audio is optional */ } },
-    play(name) {
+    play(name, arg) {
       if (!unlocked) return;                               // browsers block audio before the first gesture
-      try { if (!ensure() || !fx[name]) return; fx[name](); } catch (e) { /* audio is optional */ }
+      try { if (!ensure() || !fx[name]) return; fx[name](arg); } catch (e) { /* audio is optional */ }
     },
     setMuted(m) { muted = m; if (master) master.gain.value = m ? 0 : 0.6; },
     get muted() { return muted; },
@@ -1331,6 +1350,16 @@ function renderFighter(ctx, v) {
   ctx.restore();
 }
 
+function drawHeart(ctx, x, y, size, color) {
+  const s = size / 2;
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.moveTo(x, y + s);
+  ctx.bezierCurveTo(x - s * 1.6, y - s * 0.2, x - s * 0.9, y - s * 1.4, x, y - s * 0.5);
+  ctx.bezierCurveTo(x + s * 0.9, y - s * 1.4, x + s * 1.6, y - s * 0.2, x, y + s);
+  ctx.closePath(); ctx.fill();
+}
+
 function drawStar(ctx, x, y, r, color, ink) {
   ctx.beginPath();
   for (let i = 0; i < 10; i++) {
@@ -1484,7 +1513,7 @@ class Fighter {
     this.id = id;
     this.game = game;
     this.isHero = id === 'hero';
-    this.name = this.isHero ? 'THE HERO' : 'THE CHALLENGER';
+    this.name = this.isHero ? (BDAY ? BDAY.name.toUpperCase() : 'THE HERO') : 'THE CHALLENGER';
     this.style = STYLES[id];
     this.maxHp = 100;
     this.speed = this.isHero ? 270 : 180;
@@ -1816,7 +1845,7 @@ class Fighter {
       if (!f.landed) {
         f.landed = true;
         Sound.play('thud'); this.game.shake(6); this.game.dust(this.x + this.facing * 40, FLOOR_Y, 10);
-        this.game.selfOwn(this, 16, 'OOPS!', '#ffb703');
+        this.game.selfOwn(this, 16, bdayLine('trip', 'OOPS!'), '#ffb703');
         if (this.state !== 'trip') return;
       }
     }
@@ -1828,7 +1857,7 @@ class Fighter {
     this.vx = 0;
     if (t > 0.3 && !f.d1) {
       f.d1 = true; Sound.play('tired');
-      this.game.selfOwn(this, 12, 'TIRED!', '#9bf6ff');
+      this.game.selfOwn(this, 12, bdayLine('tired', 'TIRED!'), '#9bf6ff');
       if (this.state !== 'tired') return;
     }
     if (t > 1.0 && !f.h1) { f.h1 = true; Sound.play('tired'); this.game.popup('huff...', h.x + this.facing * 30, h.y - 10, { color: '#dff6ff', size: 20, life: 0.9 }); }
@@ -1845,7 +1874,7 @@ class Fighter {
       if (!f.swing) { f.swing = true; Sound.play('whoosh'); }
     } else if (!f.miss) {
       f.miss = true; Sound.play('dizzy');
-      this.game.selfOwn(this, 13, 'WHIFF!', '#ff9ecd');
+      this.game.selfOwn(this, 13, bdayLine('whiff', 'WHIFF!'), '#ff9ecd');
       if (this.state !== 'whiff') return;
     }
     if (t >= this.stateDur) this.setState('idle');
@@ -1859,7 +1888,7 @@ class Fighter {
       f.achoo = true; Sound.play('sneeze'); this.vx = -this.facing * 90;
       const h = this.headWorld();
       this.game.sparks(h.x + this.facing * 30, h.y + 10, 8, ['#caffbf', '#ffffff'], 140);
-      this.game.selfOwn(this, 9, 'ACHOO!', '#caffbf');
+      this.game.selfOwn(this, 9, bdayLine('sneeze', 'ACHOO!'), '#caffbf');
       if (this.state !== 'sneeze') return;
     }
     if (t >= this.stateDur) this.setState('idle');
@@ -2107,7 +2136,7 @@ class Background {
     c.fillStyle = '#b3002d'; c.fillRect(92, 112, 136, 16);
     c.fillStyle = '#ffd166'; c.fillRect(92, 112, 136, 2); c.fillRect(92, 126, 136, 2);
     c.fillStyle = '#fff'; c.font = 'bold 9px sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
-    c.fillText('ALWAYS WIN FIGHTER', 160, 120);
+    c.fillText(BDAY && BDAY.arenaBanner ? BDAY.arenaBanner.toUpperCase() : 'ALWAYS WIN FIGHTER', 160, 120);
   }
 
   drawFront(c) {
@@ -2147,6 +2176,15 @@ class Background {
       l.fillRect(Math.floor(p.x), Math.floor(y), 6, 10);
       l.beginPath(); l.arc(p.x + 3, y - 2, 3, 0, TAU); l.fill();
       if (p.arms && bob > 0.3) { l.fillRect(Math.floor(p.x) - 2, Math.floor(y) - 6, 1, 7); l.fillRect(Math.floor(p.x) + 7, Math.floor(y) - 6, 1, 7); }
+    }
+    // the crowd's sign, bobbing with the fans holding it
+    if (BDAY && BDAY.crowdSign) {
+      const bob = Math.max(0, Math.sin(t * 3 + 1)) * 2, x = 14, y = 118 - bob;
+      l.fillStyle = '#fff8e1'; l.fillRect(x, y, 64, 11);
+      l.fillStyle = '#ff4d8d'; l.fillRect(x, y, 64, 1); l.fillRect(x, y + 10, 64, 1);
+      l.fillStyle = '#1b1333'; l.fillRect(x + 6, y + 11, 1, 8); l.fillRect(x + 57, y + 11, 1, 8);
+      l.fillStyle = '#b3002d'; l.font = 'bold 7px sans-serif'; l.textAlign = 'center'; l.textBaseline = 'middle';
+      l.fillText(BDAY.crowdSign.toUpperCase(), x + 32, y + 6);
     }
     l.drawImage(this.front, 0, 0);
     ctx.imageSmoothingEnabled = false;
@@ -2225,7 +2263,11 @@ class Game {
       case 'round_end': this.updateRoundEnd(dt, rawDt); break;
       case 'match_end':
         this.updateFighters(dt, false);
-        if (Math.random() < rawDt * 6) this.confetti();
+        if (Math.random() < rawDt * (BDAY ? 10 : 6)) this.confetti();
+        if (BDAY) {                                           // drift to centre stage (the dance pins x to baseX)
+          const f = this.hero.flags, k = Math.min(1, rawDt * 1.5);
+          if (f.baseX !== undefined) f.baseX += (W / 2 - f.baseX) * k; else this.hero.x += (W / 2 - this.hero.x) * k;
+        }
         break;
       case 'dance':                                    // victory dance preview from the start screen
         this.updateFighters(dt, false);
@@ -2248,6 +2290,7 @@ class Game {
     this.updateFighters(dt, true);
     if (this.mode !== 'fight') return;              // a KO may just have ended the round
     this.stats.time += dt;
+    if (BDAY && this.heroWins >= ROUNDS_TO_WIN - 1 && this.challenger.hp <= 40 && Math.random() < dt * 2.5) this.heart();
     this.timer = Math.max(0, this.timer - dt);
     if (this.timer <= 0) this.startRoundEnd('time');
   }
@@ -2302,7 +2345,8 @@ class Game {
     this.particles.length = 0; this.popups.length = 0; this.banners.length = 0;
     this.lastPlayerAction = this.time;
     this.setMode('round_intro');
-    this.banner(this.round >= 3 ? 'FINAL ROUND' : `ROUND ${this.round}`, { color: '#ffffff', dur: 1.25, size: 84 });
+    const roundLines = bdayLine('round', null);
+    this.banner(this.round >= 3 ? 'FINAL ROUND' : `ROUND ${this.round}`, { color: '#ffffff', dur: 1.25, size: 84, sub: roundLines ? roundLines[Math.min(this.round, roundLines.length) - 1] : undefined });
     Sound.play('round');
   }
 
@@ -2348,8 +2392,14 @@ class Game {
     const sub = re.reason === 'time'
       ? 'the Challenger ran out of steam'
       : pick(['FLAWLESS!', 'as expected', 'what a surprise', 'rigged? never.', 'the script said so']);
-    this.banner('HERO WINS!', { color: '#ffd166', dur: 4.2, size: 96, sub });
-    Sound.play('victory');
+    if (BDAY && this.heroWins >= ROUNDS_TO_WIN) {
+      this.banner(`HAPPY BIRTHDAY ${BDAY.name.toUpperCase()}`, { color: '#ff9ecd', stroke: '#7a1b4f', dur: 4.2, size: 78 });
+      Sound.play('birthday', true);
+      for (let i = 0; i < 40; i++) this.heart();
+    } else {
+      this.banner(BDAY ? `${BDAY.name.toUpperCase()} WINS!` : 'HERO WINS!', { color: '#ffd166', dur: 4.2, size: 96, sub });
+      Sound.play('victory');
+    }
   }
 
   nextRound() {
@@ -2418,7 +2468,7 @@ class Game {
       this.stats.damageTaken += dealt;
       if (dealt === 0) {
         const h = def.headWorld();
-        this.popup('PLOT ARMOR!', def.x, h.y - 70, { color: '#ffd166', size: 30, life: 1.2 });
+        this.popup(bdayLine('plot', 'PLOT ARMOR!'), def.x, h.y - 70, { color: BDAY ? '#ff9ecd' : '#ffd166', size: 30, life: 1.2 });
         Sound.play('plot');
         def.smugT = 1.2; this.stats.plot++;
       }
@@ -2435,7 +2485,7 @@ class Game {
   selfOwn(f, amount, word, color) {
     const dealt = this.damage(f, amount);
     const h = f.headWorld();
-    this.popup(word, h.x, h.y - 55, { color, size: 42, rot: rand(-0.2, 0.2) });
+    this.popup(word, h.x, h.y - 55, { color, size: word.length > 12 ? 24 : 42, rot: rand(-0.2, 0.2) });
     if (dealt > 0) this.popup('-' + dealt, f.x, h.y - 20, { color: '#fff', size: 20, life: 0.8 });
     if (f.hp <= 0) { f.knockOut(); this.startRoundEnd('ko'); }
   }
@@ -2456,7 +2506,11 @@ class Game {
     this.particles.push({ type: 'dot', x, y, vx: rand(-40, 40), vy: rand(-120, -60), life: 0.7, max: 0.7, size: 5, color: '#8fd3ff', g: 500 });
   }
   confetti() {
+    if (BDAY && (this.mode === 'match_end' || this.mode === 'dance')) return this.heart();
     this.particles.push({ type: 'confetti', x: rand(0, W), y: -10, vx: rand(-40, 40), vy: rand(80, 160), life: 4, max: 4, size: rand(6, 10), color: pick(['#ffd166', '#ff4d4d', '#9bf6ff', '#caffbf', '#ffc6ff', '#ffffff']), rot: rand(0, TAU), spin: rand(-6, 6), g: 40 });
+  }
+  heart(x, y) {
+    this.particles.push({ type: 'heart', x: x === undefined ? rand(0, W) : x, y: y === undefined ? -12 : y, vx: rand(-25, 25), vy: y === undefined ? rand(40, 90) : rand(-120, -60), life: 5, max: 5, size: rand(7, 14), color: pick(['#ff4d8d', '#ff9ecd', '#ff6b6b', '#ffc6ff']), rot: rand(-0.4, 0.4), spin: rand(-1.5, 1.5), g: y === undefined ? 8 : 160, sway: rand(0, TAU) });
   }
   popup(text, x, y, o = {}) {
     this.popups.push({ text, x, y, vy: -70, life: o.life || 1, max: o.life || 1, color: o.color || '#fff', size: o.size || 32, rot: o.rot || 0 });
@@ -2470,6 +2524,7 @@ class Game {
       p.life -= dt; p.vy += (p.g || 0) * dt; p.x += p.vx * dt; p.y += p.vy * dt;
       if (p.spin) p.rot += p.spin * dt;
       if (p.type === 'confetti') p.vx += Math.sin(p.rot) * 30 * dt;
+      if (p.type === 'heart') { p.sway += dt * 2.2; p.x += Math.sin(p.sway) * 35 * dt; }
     }
     this.particles = this.particles.filter((p) => p.life > 0 && p.y < H + 20);
     for (const p of this.popups) { p.life -= dt; p.y += p.vy * dt; p.vy *= 1 - 2 * dt; }
@@ -2490,6 +2545,12 @@ class Game {
     ctx.translate(sx, sy);
     this.bg.draw(ctx, this.time);
     if (this.mode === 'intro') { this.renderIntro(ctx); ctx.restore(); return; }
+    if (BDAY && this.mode === 'match_end') {                       // lights down, spotlight on the birthday boy
+      const k = Math.min(1, this.modeT / 1.5);
+      const g = ctx.createRadialGradient(this.hero.x, FLOOR_Y - 110, 90, this.hero.x, FLOOR_Y - 110, 520);
+      g.addColorStop(0, 'rgba(10,5,30,0)'); g.addColorStop(1, `rgba(10,5,30,${(0.72 * k).toFixed(3)})`);
+      ctx.fillStyle = g; ctx.fillRect(-40, -40, W + 80, H + 80);
+    }
     // the attacker is drawn on top
     const order = (this.challenger.state === 'attack' && this.hero.state !== 'attack') ? [this.hero, this.challenger] : [this.challenger, this.hero];
     for (const f of order) f.drawShadow(ctx);
@@ -2497,7 +2558,7 @@ class Game {
     this.renderParticles(ctx);
     this.renderPopups(ctx);
     ctx.restore();
-    if (this.mode !== 'menu' && this.mode !== 'dance') this.renderHUD(ctx);
+    if (this.mode !== 'menu' && this.mode !== 'dance' && !(BDAY && this.mode === 'match_end')) this.renderHUD(ctx);
     if (this.mode === 'dance') arcadeText(ctx, (DANCES[this.dance] || DANCES.showoff).label.toUpperCase(), W / 2, 40, 34, '#ffd166', '#1d1530');
     this.renderBanners(ctx);
     if (this.flashA > 0) { ctx.fillStyle = `rgba(255,255,255,${this.flashA.toFixed(3)})`; ctx.fillRect(0, 0, W, H); }
@@ -2510,6 +2571,9 @@ class Game {
         ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot);
         drawStar(ctx, 0, 0, p.size * (0.4 + 0.6 * a), p.color, null);
         ctx.restore();
+      } else if (p.type === 'heart') {
+        ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot); ctx.globalAlpha = Math.min(1, a * 3);
+        drawHeart(ctx, 0, 0, p.size, p.color); ctx.restore();
       } else if (p.type === 'confetti') {
         ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot);
         ctx.fillStyle = p.color; ctx.fillRect(-p.size / 2, -p.size / 4, p.size, p.size / 2);
@@ -2620,12 +2684,12 @@ class Game {
     this.drawFighterPreview(ctx, this.challenger, cx, 500, 1.55, CLIPS.taunt(t), -1);
     ctx.save();
     ctx.globalAlpha = slide;
-    arcadeText(ctx, 'THE HERO', 230, 80, 52, '#ffd166', '#1d1530');
+    arcadeText(ctx, BDAY ? BDAY.name.toUpperCase() : 'THE HERO', 230, 80, 52, '#ffd166', '#1d1530');
     arcadeText(ctx, 'Record: 999 - 0', 230, 122, 22, '#fff', '#1d1530');
-    arcadeText(ctx, 'Undefeated. Unbothered. Lucky.', 230, 150, 18, '#cfc6ff', '#1d1530', 'center', false);
+    arcadeText(ctx, bdayLine('heroTagline', 'Undefeated. Unbothered. Lucky.'), 230, 150, 18, '#cfc6ff', '#1d1530', 'center', false);
     arcadeText(ctx, 'THE CHALLENGER', W - 230, 80, 52, '#ffc6ff', '#1d1530');
     arcadeText(ctx, 'Record: 0 - 999', W - 230, 122, 22, '#fff', '#1d1530');
-    arcadeText(ctx, 'Trained for years. Trips a lot.', W - 230, 150, 18, '#cfc6ff', '#1d1530', 'center', false);
+    arcadeText(ctx, bdayLine('challengerTagline', 'Trained for years. Trips a lot.'), W - 230, 150, 18, '#cfc6ff', '#1d1530', 'center', false);
     ctx.restore();
     const pulse = 1 + 0.08 * Math.sin(t * 6);
     ctx.save();
@@ -2707,7 +2771,27 @@ const Screens = (() => {
 
   function init(g) {
     game = g;
-    $('btn-start').addEventListener('click', () => { Sound.unlock(); Sound.play('ui'); game.startIntro(); });
+    $('btn-start').addEventListener('click', () => { Sound.unlock(); Sound.play('ui'); if (BDAY) Sound.play('birthday', false); game.startIntro(); });
+    if (BDAY) {
+      if (BDAY.tagline) $('start-tagline').textContent = BDAY.tagline;
+      // the secret screen: H shows a photo (or a heart with the message); any key or tap closes it
+      const secret = $('screen-secret');
+      if (BDAY.photo) { const img = $('secret-photo'); img.src = BDAY.photo; img.classList.remove('hidden'); $('secret-heart').classList.add('hidden'); }
+      $('secret-caption').textContent = BDAY.photo ? (BDAY.photoCaption || '') : (BDAY.message || []).join(' ');
+      let secretOpen = false, secretFrom = null;
+      const closeSecret = () => { if (!secretOpen) return; secretOpen = false; secret.classList.add('hidden'); if (secretFrom) secretFrom.classList.remove('hidden'); if (game.mode !== 'menu' && game.mode !== 'match_end' && game.mode !== 'dance') game.paused = false; };
+      window.addEventListener('keydown', (e) => {
+        if (secretOpen) { e.preventDefault(); Input.clear(); closeSecret(); return; }   // the closing key must not also pause or punch
+        if (e.key !== 'h' && e.key !== 'H') return;
+        secretOpen = true;
+        secretFrom = Array.from(document.querySelectorAll('.screen')).find((el) => !el.classList.contains('hidden')) || null;
+        if (secretFrom) secretFrom.classList.add('hidden');
+        if (game.mode !== 'menu' && game.mode !== 'match_end' && game.mode !== 'dance') game.paused = true;
+        secret.classList.remove('hidden');
+        for (let i = 0; i < 12; i++) game.heart();
+      });
+      secret.addEventListener('pointerdown', (e) => { e.preventDefault(); closeSecret(); });
+    }
     $('btn-play-again').addEventListener('click', () => { Sound.play('ui'); game.startMatch(); });
     $('btn-victory-menu').addEventListener('click', () => { Sound.play('ui'); game.goMenu(); });
     $('btn-pause').addEventListener('click', () => { Sound.play('ui'); game.togglePause(); });
@@ -2758,8 +2842,24 @@ const Screens = (() => {
 
   function onPause(paused) { if (paused) show('screen-pause'); else hideAll(); }
 
+  let typer = null;
   function showVictory(g) {
     const s = g.stats;
+    if (BDAY) {
+      $('screen-victory').classList.add('birthday');
+      $('screen-victory').querySelector('.victory-title').textContent = `Happy birthday ${BDAY.name}`;
+      const sub = $('victory-sub');
+      sub.classList.add('typing'); sub.textContent = '';
+      const text = (BDAY.message || []).join('\n');
+      let i = 0;
+      clearInterval(typer);
+      typer = setInterval(() => { i++; sub.textContent = text.slice(0, i); if (i >= text.length) { clearInterval(typer); sub.classList.remove('typing'); } }, 55);
+      const rows = (bdayLine('stats', []) || []).slice();
+      rows.push(['Punches landed', s.punches], ['Times she let him win', s.misfortunes]);
+      $('victory-stats').innerHTML = rows.map(([k, v]) => `<li><span>${k}</span><span>${v}</span></li>`).join('');
+      show('screen-victory');
+      return;
+    }
     $('victory-sub').textContent = pick([
       'A flawless 2 to 0. Nobody is surprised.',
       'The Challenger has requested a rematch. It will go the same way.',

@@ -42,7 +42,7 @@
           <span class="title-main">Always Win</span>
           <span class="title-sub">Fighter</span>
         </h1>
-        <p class="tagline">The fight is rigged. You are the rig.</p>
+        <p class="tagline" id="start-tagline">The fight is rigged. You are the rig.</p>
         <div class="row">
           <button id="btn-start" class="btn btn-primary">&#9654; Start</button>
           <!-- CUSTOM-FACES:START -->
@@ -117,10 +117,22 @@
         </div>
       </section>
 
+      <!-- ===================== SECRET SCREEN (press H) ===================== -->
+      <section class="screen hidden" id="screen-secret">
+        <div class="secret-card">
+          <img id="secret-photo" alt="" class="hidden">
+          <div id="secret-heart" class="secret-heart">&#10084;</div>
+          <p class="tagline" id="secret-caption"></p>
+        </div>
+        <p class="small">Press any key or tap to go back</p>
+      </section>
+
       <!-- ===================== VICTORY ===================== -->
       <section class="screen hidden" id="screen-victory">
-        <h2 class="title victory-title">Hero Wins!</h2>
-        <p class="tagline" id="victory-sub">A flawless victory. Nobody is surprised.</p>
+        <div class="victory-top">
+          <h2 class="title victory-title">Hero Wins!</h2>
+          <p class="tagline" id="victory-sub">A flawless victory. Nobody is surprised.</p>
+        </div>
         <ul class="stats" id="victory-stats"></ul>
         <div class="row">
           <button id="btn-play-again" class="btn btn-primary">&#9654; Play Again</button>
@@ -137,6 +149,7 @@
   <script src="assets/faces/faces.js"></script>
   <!-- CUSTOM-FACES:END -->
   <script src="assets/sprites/sprites.js"></script>
+  <script src="assets/birthday.js"></script>
   <script src="game.js"></script>
 </body>
 </html>

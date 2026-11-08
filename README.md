@@ -71,6 +71,15 @@ background, side view, and run them through the cut-out script (see "Adding spri
   to two rounds, which always means 2 - 0.
 
 <!-- CUSTOM-FACES:START -->
+## Birthday edition
+
+Everything personal lives in `assets/birthday.js`: his name, the message typed out at the end, the
+arena banner, the crowd's sign, the start-screen line, what the Challenger says when she trips,
+tires, whiffs or sneezes, the sweet stats on the ending screen and an optional photo for the secret
+screen (press **H** during the game). The last round win ends with "HAPPY BIRTHDAY" over his real
+victory dance, hearts instead of confetti and the birthday song. Set `window.AWF_BIRTHDAY = null`
+in that file to get the plain game back.
+
 ## Custom faces
 
 Each fighter's head is an oval face area, so any face photo can be mapped onto it. The face follows the

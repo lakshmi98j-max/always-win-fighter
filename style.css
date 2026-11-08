@@ -363,3 +363,33 @@ body.touch #touch-controls { display: block; }
 @media (orientation: portrait) and (max-width: 700px) {
   .rotate-hint { display: block; }
 }
+
+/* ---------------------------------------------------------------------------
+   Birthday edition: the victory screen leaves the middle clear so the dance
+   shows through, and the secret screen (press H) shows a photo or a heart.
+   --------------------------------------------------------------------------- */
+#screen-victory.birthday {
+  justify-content: space-between;
+  background: linear-gradient(to bottom, rgba(12, 6, 30, 0.9) 0%, rgba(12, 6, 30, 0.55) 28%, rgba(12, 6, 30, 0) 45%,
+    rgba(12, 6, 30, 0) 62%, rgba(12, 6, 30, 0.7) 82%, rgba(12, 6, 30, 0.92) 100%);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+#screen-victory.birthday > :first-child { margin-top: 0; }
+#screen-victory.birthday > :last-child { margin-bottom: 0; }
+#screen-victory.birthday .victory-title { color: #ff9ecd; text-shadow: 0.1em 0.1em 0 #7a1b4f, 0.18em 0.18em 0 var(--ink); }
+#screen-victory.birthday .stats { position: absolute; left: 2em; bottom: 2em; font-size: 1.3em; background: rgba(0, 0, 0, 0.5); gap: 0.2em 1.6em; }
+#screen-victory.birthday .row { position: absolute; right: 2em; bottom: 2em; justify-content: flex-end; max-width: 46%; }
+#screen-victory.birthday .row .btn { font-size: 1.9em; padding: 0.4em 0.9em; }
+#screen-victory.birthday #victory-sub { white-space: pre-line; }
+.victory-top { display: flex; flex-direction: column; align-items: center; gap: 0.6em; }
+#victory-sub.typing { font-size: 2.3em; color: #fff; min-height: 3.2em; white-space: pre-line; line-height: 1.4; }
+#victory-sub.typing::after { content: "|"; animation: blink 0.9s steps(2) infinite; color: #ff9ecd; }
+
+.secret-card {
+  display: flex; flex-direction: column; align-items: center; gap: 1em;
+  padding: 1.5em; border-radius: 1em; background: rgba(0, 0, 0, 0.4); border: 0.1em solid #7a1b4f;
+}
+#secret-photo { max-height: 55vh; max-width: 90%; border-radius: 0.8em; border: 0.3em solid #ff9ecd; }
+.secret-heart { font-size: 14em; color: #ff4d8d; line-height: 1; animation: beat 1s ease-in-out infinite; text-shadow: 0 0 0.3em rgba(255, 77, 141, 0.6); }
+@keyframes beat { 0%, 100% { transform: scale(1); } 30% { transform: scale(1.12); } 60% { transform: scale(1.04); } }
