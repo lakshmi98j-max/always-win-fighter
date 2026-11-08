@@ -39,9 +39,14 @@ bigger arena.
 
 ### The fighters
 
-This copy ships with real photos on both fighters (`assets/faces/hero.png` and
-`assets/faces/challenger.png`, wired up in `assets/faces/faces.js`). Delete those two lines or set
-them to `null` to go back to the drawn faces.
+This copy uses **real photo figures**: full-body cut-outs in `assets/sprites/` (a standing pose for
+each fighter and 20 dance frames for the Hero), listed in `assets/sprites/sprites.js`. The whole
+figure leans, lunges, falls and hops for moves that have no dedicated frame; the victory dance plays
+the real frames. The HUD portraits use `assets/faces/`. Remove `sprites.js` from `index.html` (or
+empty it) to go back to the drawn fighters.
+
+To add more real poses, generate images of the same person in the same outfit on a plain white
+background, side view, and run them through the cut-out script (see "Adding sprite poses" below).
 
 
 - **The Hero** (player 1): short tousled black hair, a trimmed beard, thick brows, a red headband,
@@ -93,6 +98,16 @@ window.AWF_FACES = { hero: 'assets/faces/hero.png', challenger: 'assets/faces/ch
 A photo uploaded by a player always takes priority over these files.
 <!-- CUSTOM-FACES:END -->
 
+## Adding sprite poses
+
+`assets/sprites/sprites.js` describes each frame: the image, its size and the anchor (`ax`, `ay`:
+the horizontal centre of the feet and the bottom of the feet). Besides `stand` and `dance`, a
+fighter can have `jab`, `power`, `kick`, `block`, `jump`, `hurt`, `down` and `walk` frames; any
+that exist are used for that move, the rest fall back to the standing pose with motion. Generate
+the poses on a plain white background (a grid of poses in one image works), cut the background
+out, and add entries with the measured anchors. `faceDir` is the direction the figure faces in
+its image (1 = right, -1 = left).
+
 ## Run it
 
 The game is static. Either open `index.html` directly in a browser, or serve the folder:
@@ -132,7 +147,8 @@ Copy the `always-win-fighter/` folder into the site and it works at
 | `style.css` | Layout of the 16:9 stage, arcade-style buttons, touch controls, phone layouts |
 | `game.js` | The whole game: sound, input, faces, animation, fighters, AI, arena, HUD, game loop |
 | `assets/favicon.svg` | Browser tab icon |
-| `assets/faces/faces.js` | Optional drop-in face configuration (see "Custom faces") |
+| `assets/faces/faces.js` | Face photos used for the HUD portraits (see "Custom faces") |
+| `assets/sprites/` | Full-body photo figures and their manifest `sprites.js` |
 | `assets/screenshot.png` | The screenshot above |
 
 ## How it works (for the curious)
