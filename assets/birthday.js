@@ -6,6 +6,10 @@
 window.AWF_BIRTHDAY = {
   name: 'Sakaar',
 
+  // The game's name: the two lines of the start-screen title, the browser tab and the arena sign.
+  title: 'Sakaar',
+  subtitle: 'Fight Night',
+
   // Typed out line by line under the birthday banner at the end.
   message: [
     'In this game you always win.',
@@ -13,8 +17,8 @@ window.AWF_BIRTHDAY = {
     'Happy birthday, Sakaar.',
   ],
 
-  // The sign the crowd holds up. (arenaBanner would replace the wall sign's text; null keeps the original.)
-  arenaBanner: null,
+  // The sign the crowd holds up. (arenaBanner is the wall sign's text; null uses the title.)
+  arenaBanner: 'FIGHT NIGHT',
   crowdSign: 'HBD SAKAAR',
 
   // Music for his victory dance. null plays the built-in Bollywood-style dance number

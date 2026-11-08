@@ -1499,7 +1499,7 @@ const Sprites = (() => {
     const img = new Image();
     const frame = { img, w: f.w, h: f.h, ax: f.ax, ay: f.ay, scale, ready: false };
     img.onload = () => { frame.ready = true; };
-    img.onerror = () => console.warn('Always Win Fighter: could not load sprite ' + f.src);
+    img.onerror = () => console.warn('Could not load sprite ' + f.src);
     img.src = base + f.src;
     return frame;
   }
@@ -2305,7 +2305,8 @@ class Background {
     c.fillStyle = '#b3002d'; c.fillRect(92, 112, 136, 16);
     c.fillStyle = '#ffd166'; c.fillRect(92, 112, 136, 2); c.fillRect(92, 126, 136, 2);
     c.fillStyle = '#fff'; c.font = 'bold 9px sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
-    c.fillText(BDAY && BDAY.arenaBanner ? BDAY.arenaBanner.toUpperCase() : 'ALWAYS WIN FIGHTER', 160, 120);
+    const sign = BDAY ? (BDAY.arenaBanner || `${BDAY.title || ''} ${BDAY.subtitle || ''}`.trim()) : 'ALWAYS WIN FIGHTER';
+    c.fillText(sign.toUpperCase(), 160, 120);
   }
 
   drawFront(c) {
@@ -3025,6 +3026,9 @@ const Screens = (() => {
     $('btn-start').addEventListener('click', () => { Sound.unlock(); Sound.play('ui'); if (BDAY) Sound.play('birthday', false); game.startIntro(); });
     if (BDAY) {
       if (BDAY.tagline) $('start-tagline').textContent = BDAY.tagline;
+      if (BDAY.title) { $('title-main').textContent = BDAY.title; document.title = `${BDAY.title} ${BDAY.subtitle || ''}`.trim(); }
+      if (BDAY.subtitle) $('title-sub').textContent = BDAY.subtitle;
+      $('credit').textContent = 'Best of 3 \u00b7 made with love';
       document.querySelector('[data-action="flirt"]').classList.remove('hidden');
       $('legend-flirt').classList.remove('hidden'); $('legend-flirt-2').classList.remove('hidden');
       // the secret screen: H shows a photo (or a heart with the message); any key or tap closes it
@@ -3280,7 +3284,7 @@ const FaceCustomizer = (() => {
         c.img = img; c.fromAsset = true;
         apply(c, true);
       };
-      img.onerror = () => console.warn(`Always Win Fighter: could not load the face image "${cfg[who]}" for ${who}.`);
+      img.onerror = () => console.warn(`Could not load the face image "${cfg[who]}" for ${who}.`);
       img.src = cfg[who];
     }
   }
