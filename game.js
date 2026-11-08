@@ -2515,6 +2515,11 @@ class Game {
     if (this.mode === 'intro') return;
     Sound.stopDance();
     this.paused = false;
+    const one = (v, fallback) => (Array.isArray(v) ? pick(v) : v || fallback);
+    this.introLines = {
+      hero: one(bdayLine('heroTagline', null), 'Undefeated. Unbothered. Lucky.'),
+      challenger: one(bdayLine('challengerTagline', null), 'Trained for years. Trips a lot.'),
+    };
     this.hero.reset(320, 1); this.challenger.reset(640, -1);
     this.introTap = false;
     this.setMode('intro');
@@ -2938,10 +2943,11 @@ class Game {
     ctx.globalAlpha = slide;
     arcadeText(ctx, BDAY ? BDAY.name.toUpperCase() : 'THE HERO', 230, 80, 52, '#ffd166', '#1d1530');
     arcadeText(ctx, 'Record: 999 - 0', 230, 122, 22, '#fff', '#1d1530');
-    arcadeText(ctx, bdayLine('heroTagline', 'Undefeated. Unbothered. Lucky.'), 230, 150, 18, '#cfc6ff', '#1d1530', 'center', false);
+    const lines = this.introLines || { hero: 'Undefeated. Unbothered. Lucky.', challenger: 'Trained for years. Trips a lot.' };
+    this.drawTagline(ctx, lines.hero, 230, 150);
     arcadeText(ctx, 'THE CHALLENGER', W - 230, 80, 52, '#ffc6ff', '#1d1530');
     arcadeText(ctx, 'Record: 0 - 999', W - 230, 122, 22, '#fff', '#1d1530');
-    arcadeText(ctx, bdayLine('challengerTagline', 'Trained for years. Trips a lot.'), W - 230, 150, 18, '#cfc6ff', '#1d1530', 'center', false);
+    this.drawTagline(ctx, lines.challenger, W - 230, 150);
     ctx.restore();
     const pulse = 1 + 0.08 * Math.sin(t * 6);
     ctx.save();
@@ -2949,6 +2955,19 @@ class Game {
     arcadeText(ctx, 'VS', 0, 0, 120, '#ff4d4d', '#ffffff');
     ctx.restore();
     if (t > 0.8 && Math.floor(t * 2) % 2 === 0) arcadeText(ctx, 'PRESS ENTER OR TAP TO FIGHT', W / 2, H - 36, 24, '#fff', '#1d1530');
+  }
+
+  /** A tagline under a VS-screen name, wrapped onto up to three lines within its half of the screen. */
+  drawTagline(ctx, text, x, y) {
+    ctx.font = '700 18px system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif';
+    const words = text.split(' '), lines = [];
+    let cur = '';
+    for (const w of words) {
+      const t = cur ? cur + ' ' + w : w;
+      if (ctx.measureText(t).width > 400 && cur) { lines.push(cur); cur = w; } else cur = t;
+    }
+    if (cur) lines.push(cur);
+    lines.slice(0, 3).forEach((l, i) => arcadeText(ctx, l, x, y + i * 22, 18, '#cfc6ff', '#1d1530', 'center', false));
   }
 
   drawFighterPreview(ctx, f, x, feetY, scale, pose, facing) {

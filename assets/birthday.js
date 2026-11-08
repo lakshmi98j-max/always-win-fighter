@@ -36,8 +36,24 @@ window.AWF_BIRTHDAY = {
     whiff: 'I let you have that one',
     sneeze: 'allergic to losing to you',
     plot: 'LOVE ARMOR!',
-    heroTagline: 'Undefeated. Unbothered. Loved.',
-    challengerTagline: 'Has lost to him every single day. Happily.',
+    // VS screen taglines: one is picked at random each match.
+    heroTagline: [
+      'Undefeated. Unbothered. Moisturised. Hers.',
+      "Can't lose. Won't lose. Doesn't know what losing is. Please don't tell him.",
+      'Once lost at Uno in 2019. We do not speak of it.',
+      'Fights for honour, glory and the last slice of pizza.',
+      'Has a 999-0 record and a girlfriend who rigged all 999.',
+    ],
+    challengerTagline: [
+      'Legally cannot win this. Emotionally cannot leave.',
+      'Trained in the mountains for ten years. Forgot all of it the second he smiled.',
+      'Lost 999 fights. Won one boyfriend. Worth it.',
+      'Her coach quit. Her mum is in the crowd. Her heart is in his jacket pocket.',
+      'Will throw this fight. Will also throw hands. Will also throw herself at him.',
+      'Here to fight. Staying for the eyebrows.',
+      'Has his location, his schedule and no intention of winning.',
+      'Does not know how to lose. Does not know how to stop staring either.',
+    ],
     round: ["let's see what you've got", 'still yours', 'the one that matters'],
     stats: [
       ['Rounds won', 'All of them'],
