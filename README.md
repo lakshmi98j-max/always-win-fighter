@@ -76,7 +76,9 @@ background, side view, and run them through the cut-out script (see "Adding spri
 Everything personal lives in `assets/birthday.js`: his name, the message typed out at the end, the
 arena banner, the crowd's sign, the start-screen line, what the Challenger says when she trips,
 tires, whiffs or sneezes, the sweet stats on the ending screen and an optional photo for the secret
-screen (press **H** during the game). The last round win ends with "HAPPY BIRTHDAY" over his real
+screen (press **H** during the game), plus her flirty lines (speech bubbles while she circles him,
+attacks, lands a hit, gets hit, blocks or is knocked down) and her kiss move: she blows a kiss, hearts
+fly at him and "MWAH!" does 1 damage. The last round win ends with "HAPPY BIRTHDAY" over his real
 victory dance, hearts instead of confetti and the birthday song. Set `window.AWF_BIRTHDAY = null`
 in that file to get the plain game back.
 

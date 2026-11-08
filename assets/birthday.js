@@ -38,6 +38,18 @@ window.AWF_BIRTHDAY = {
     ],
   },
 
+  // What she says during the fight (speech bubbles). One is picked at random.
+  flirts: {
+    idle: ['you look good when you win', "I'd let you win anyway", 'nice jacket', 'is it hot in here?', 'come here, you', 'stop smiling, I\'m trying to fight'],
+    attack: ['catch me if you can', 'is that all?', 'think fast, handsome', 'this one\'s a love tap'],
+    kiss: ['mwah!', 'that counts as a hit', 'one for luck', 'kisses are legal, I checked'],
+    landed: ['oops, did that hurt? sorry not sorry', 'that was a love tap', "don't worry, I'll kiss it better"],
+    gotHit: ["ow! you're strong", 'rude... I like it', 'do that again', "okay, that's fair"],
+    block: ['nice try, handsome', 'not today, love', 'I know all your moves'],
+    down: ['I meant to do that', 'the floor is comfy, actually', 'just resting my eyes'],
+    lowHp: ['okay okay, you win', 'you always do', "I'm not even mad"],
+  },
+
   // Secret screen: press H during the game. Put a photo of the two of you in
   // assets/ and set its path here, for example 'assets/us.jpg'. With null, the
   // secret screen shows the message on a heart card instead.

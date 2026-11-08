@@ -179,6 +179,7 @@ const Sound = (() => {
     whoosh() { noise({ dur: 0.32, vol: 0.25, f0: 300, f1: 2200, q: 1.2, attack: 0.1 }); },
     block()  { tone({ type: 'square', f0: 700, f1: 500, dur: 0.07, vol: 0.18 }); noise({ dur: 0.05, vol: 0.25, type: 'highpass', f0: 3000 }); },
     poke()   { tone({ type: 'triangle', f0: 520, f1: 380, dur: 0.08, vol: 0.2 }); },
+    kiss()   { tone({ f0: 900, f1: 1400, dur: 0.07, vol: 0.18 }); noise({ dur: 0.06, vol: 0.15, f0: 3000, f1: 1200, delay: 0.05 }); tone({ f0: 1500, f1: 600, dur: 0.12, vol: 0.14, delay: 0.07 }); },
     jump()   { tone({ f0: 220, f1: 520, dur: 0.16, vol: 0.15 }); },
     land()   { noise({ dur: 0.08, vol: 0.2, type: 'lowpass', f0: 400, f1: 100 }); },
     ko()     { noise({ dur: 0.6, vol: 0.6, f0: 1200, f1: 60, q: 0.5 }); tone({ type: 'sawtooth', f0: 320, f1: 30, dur: 0.9, vol: 0.3 }); tone({ f0: 90, f1: 25, dur: 0.8, vol: 0.6 }); },
@@ -935,6 +936,17 @@ const ATTACKS = {
       { t: 0.45, pose: IDLE_POSE },
     ]),
   },
+  ch_kiss: {
+    name: 'kiss', startup: 0.26, active: 0.1, recovery: 0.4,
+    damage: 1, hitstun: 0.1, knockback: 30, hitPoint: 'fistF', radius: 20, shake: 1, lunge: 0,
+    sound: 'kiss', words: ['MWAH!', 'kiss!', 'xoxo', 'smooch'],
+    clip: keyframes([
+      { t: 0, pose: IDLE_POSE },
+      { t: 0.2, pose: stand(72, 16, -18, { lean: 0.08, headTilt: 0.1, armF: { s: 1.5, e: 2.3 }, armB: { s: 0.8, e: 2.1 } }) },
+      { t: 0.3, pose: stand(72, 18, -18, { lean: 0.12, headTilt: 0.15, armF: { s: 1.6, e: 0.4 }, armB: { s: 0.8, e: 2.1 } }) },
+      { t: 0.76, pose: IDLE_POSE },
+    ]),
+  },
   ch_kick: {
     name: 'kick', startup: 0.18, active: 0.1, recovery: 0.3,
     damage: 2, hitstun: 0.15, knockback: 100, hitPoint: 'footF', radius: 18, shake: 2, lunge: 80,
@@ -1519,6 +1531,7 @@ class Fighter {
     this.speed = this.isHero ? 270 : 180;
     this.animT = Math.random() * 10;
     this.smugT = 0;
+    this.bubble = null; this.sayCooldown = 0; this.chatter = rand(3, 6);
     this.reset(this.isHero ? 320 : 640, this.isHero ? 1 : -1);
   }
 
@@ -1534,6 +1547,7 @@ class Fighter {
     this.skel = computeSkeleton(this.pose, this.style);
     this.face = FaceStore.get(this.id, 'normal');
     this.ai = { timer: 0, intent: 'wait', misfortune: rand(3, 5) };
+    this.bubble = null; this.sayCooldown = 0; this.chatter = rand(3, 6);
   }
 
   setState(name, dur = 0) {
@@ -1553,6 +1567,14 @@ class Fighter {
   isInvulnerable() { return this.isLying() || this.state === 'victory' || this.state === 'defeat'; }
   isDizzy() {
     return this.state === 'ko' || this.state === 'down' || (this.state === 'whiff' && this.stateTime > 0.65);
+  }
+
+  /** Says a random line from the birthday flirts for this moment (speech bubble over the head). */
+  say(kind, force) {
+    if (!BDAY || !BDAY.flirts || !BDAY.flirts[kind] || !BDAY.flirts[kind].length) return;
+    if (!force && (this.bubble || this.sayCooldown > 0)) return;
+    this.bubble = { text: pick(BDAY.flirts[kind]), t: 0, dur: 1.9 };
+    this.sayCooldown = 2.6;
   }
 
   /** The photo sprite set for this fighter, or null when it draws the skeleton. */
@@ -1613,6 +1635,12 @@ class Fighter {
     this.stateTime += dt;
     this.animT += dt;
     this.smugT = Math.max(0, this.smugT - dt);
+    this.sayCooldown = Math.max(0, this.sayCooldown - dt);
+    if (this.bubble && (this.bubble.t += dt) > this.bubble.dur) this.bubble = null;
+    if (!this.isHero && this.game.mode === 'fight' && this.canAct()) {       // idle chatter while circling him
+      this.chatter -= dt;
+      if (this.chatter <= 0) { this.chatter = rand(5, 9); this.say(this.hp <= 25 ? 'lowHp' : 'idle'); }
+    }
 
     switch (this.state) {
       case 'attack': this.updateAttack(opp); break;
@@ -1674,6 +1702,7 @@ class Fighter {
     this.vx = 0;
     if (def.windupSound) Sound.play(def.windupSound);
     if (this.isHero) this.game.notePlayerAction();
+    else if (Math.random() < 0.45) this.say(def.name === 'kiss' ? 'kiss' : 'attack');
   }
 
   hitPoint(name) {
@@ -1687,12 +1716,16 @@ class Fighter {
     const a = this.attack, t = this.stateTime;
     // step into the punch during the active frames
     if (a.lunge && t >= a.startup * 0.5 && t < a.startup + a.active) this.vx = this.facing * a.lunge;
+    if (a.name === 'kiss' && t >= a.startup * 0.6 && Math.random() < 0.5) {      // hearts float from her lips toward him
+      const h = this.headWorld();
+      this.game.particles.push({ type: 'heart', x: h.x + this.facing * 14, y: h.y + 4, vx: this.facing * rand(120, 220), vy: rand(-60, -10), life: 1.1, max: 1.1, size: rand(8, 13), color: pick(['#ff4d8d', '#ff9ecd']), rot: 0, spin: rand(-2, 2), g: -20, sway: rand(0, TAU) });
+    }
     if (!a.hasHit && t >= a.startup && t <= a.startup + a.active) {
       const sp = this.sprite(), box = opp.getHurtbox();
       if (sp) {
         // photo figures: the whole extended limb can connect, from the body out to the
         // reach of the real frame (jab 95, power punch 80 plus the lunge, kick 130)
-        const reach = a.name === 'power' ? 80 : a.name === 'kick' ? 130 : 95;
+        const reach = a.name === 'power' ? 80 : a.name === 'kick' ? 130 : a.name === 'kiss' ? 120 : 95;
         const y = this.y - sp.height * (a.name === 'kick' ? 0.55 : a.name === 'power' ? 0.7 : 0.78);
         let hitAt = null;
         for (let k = 0.25; k <= 1.001 && !hitAt; k += 0.125) {
@@ -1731,7 +1764,9 @@ class Fighter {
     if (this.hp <= 0) { this.knockOut(); return; }
     if (atk.knockdown && (Math.random() < atk.knockdownChance || this.hp < 30)) {
       this.setState('down', 1.3);
+      this.say('down');
     } else {
+      if (Math.random() < 0.5) this.say('gotHit');
       this.setState('hurt', atk.hitstun);
     }
   }
@@ -1811,11 +1846,11 @@ class Fighter {
       else { ai.intent = 'wait'; ai.timer = rand(0.3, 0.6); }
     } else if (d > 100) {
       if (r < 0.45) { ai.intent = 'approach'; ai.timer = rand(0.2, 0.4); }
-      else if (r < 0.7) { ai.intent = 'wait'; ai.timer = 0.4; this.startAttack(Math.random() < 0.5 ? 'ch_jab' : 'ch_kick'); }   // misjudged range
+      else if (r < 0.7) { ai.intent = 'wait'; ai.timer = 0.4; this.startAttack(BDAY && Math.random() < 0.45 ? 'ch_kiss' : Math.random() < 0.5 ? 'ch_jab' : 'ch_kick'); }   // misjudged range
       else if (r < 0.85) { ai.intent = 'block'; ai.timer = rand(0.4, 0.8); }
       else { ai.intent = 'retreat'; ai.timer = rand(0.2, 0.4); }
     } else {
-      if (r < 0.5) { ai.intent = 'wait'; ai.timer = 0.3; this.startAttack(Math.random() < 0.6 ? 'ch_jab' : 'ch_kick'); }
+      if (r < 0.5) { ai.intent = 'wait'; ai.timer = 0.3; this.startAttack(BDAY && Math.random() < 0.4 ? 'ch_kiss' : Math.random() < 0.6 ? 'ch_jab' : 'ch_kick'); }
       else if (r < 0.7) { ai.intent = 'block'; ai.timer = rand(0.4, 0.9); }
       else if (r < 0.88) { ai.intent = 'retreat'; ai.timer = rand(0.25, 0.5); }
       else { ai.intent = 'wait'; ai.timer = rand(0.2, 0.4); }
@@ -1950,7 +1985,8 @@ class Fighter {
       case 'taunt': use('fistup', () => { v.sx = 1 + 0.03 * Math.sin(t * 8); }); v.rot = 0.03 * Math.sin(t * 8); break;
       case 'attack': {
         const a = this.attack, big = a.name === 'power', kick = a.name === 'kick';
-        const windKey = big ? 'cross' : kick ? 'knee' : 'stand2', hitKey = big ? 'uppercut' : kick ? 'sidekick' : 'jab';
+        const kiss = a.name === 'kiss';
+        const windKey = big ? 'cross' : kick ? 'knee' : kiss ? 'palm' : 'stand2', hitKey = big ? 'uppercut' : kick ? 'sidekick' : kiss ? 'palm' : 'jab';
         if (t < a.startup) {
           const k = smooth(t / a.startup);
           use(windKey, () => { v.rot = -(big ? 0.16 : 0.05) * k; v.sx = 1 - (big ? 0.05 : 0.02) * k; });
@@ -2024,7 +2060,7 @@ class Fighter {
       ctx.scale(this.facing * sp.faceDir, 1);
       const view = this.spriteView();
       drawSpriteFrame(ctx, view.frame, view);
-      if (this.state === 'attack' && !view.real) {
+      if (this.state === 'attack' && !view.real && this.attack.name !== 'kiss') {
         ctx.save(); ctx.translate(view.dx || 0, 0); ctx.rotate(view.rot || 0); drawStrikeOverlay(ctx, sp, this); ctx.restore();
       }
       ctx.restore();
@@ -2440,6 +2476,7 @@ class Game {
       this.sparks(p.x, p.y, 8, ['#ffffff', '#9bf6ff', '#a0c4ff'], 220);
       this.popup('BLOCK', p.x, p.y - 30, { color: '#9bf6ff', size: 26 });
       Sound.play('block');
+      if (!def.isHero) def.say('block');
       def.vx = dir * 140; this.shake(3); this.hitstop = 0.04;
       this.stats.blocked++;
       if (!def.isHero) {                                  // chip damage through her guard
@@ -2451,7 +2488,8 @@ class Game {
     if (def.isBlocking() && atk.guardBreak) this.popup('GUARD BREAK!', p.x, p.y - 75, { color: '#ff9f1c', size: 30 });
     const dealt = this.damage(def, atk.damage);
     const big = att.isHero;
-    this.sparks(p.x, p.y, big ? (atk.guardBreak ? 26 : 14) : 5,
+    if (atk.name === 'kiss') for (let i = 0; i < 8; i++) this.heart(p.x + rand(-10, 10), p.y + rand(-10, 10));
+    else this.sparks(p.x, p.y, big ? (atk.guardBreak ? 26 : 14) : 5,
       big ? ['#ffd166', '#ff9f1c', '#ffffff', '#ff4d4d'] : ['#ffc6ff', '#ffffff'], big ? 340 : 160);
     this.popup(pick(atk.words), p.x + dir * 10, p.y - 45, {
       color: big ? pick(['#ffd166', '#ff4d4d', '#ff9f1c']) : '#ffc6ff',
@@ -2466,6 +2504,7 @@ class Game {
     this.hitstop = big ? (atk.guardBreak ? 0.1 : 0.05) : 0.02;
     if (def.isHero) {
       this.stats.damageTaken += dealt;
+      if (Math.random() < 0.5) att.say('landed');
       if (dealt === 0) {
         const h = def.headWorld();
         this.popup(bdayLine('plot', 'PLOT ARMOR!'), def.x, h.y - 70, { color: BDAY ? '#ff9ecd' : '#ffd166', size: 30, life: 1.2 });
@@ -2557,11 +2596,36 @@ class Game {
     for (const f of order) f.draw(ctx);
     this.renderParticles(ctx);
     this.renderPopups(ctx);
+    for (const f of order) this.renderBubble(ctx, f);
     ctx.restore();
     if (this.mode !== 'menu' && this.mode !== 'dance' && !(BDAY && this.mode === 'match_end')) this.renderHUD(ctx);
     if (this.mode === 'dance') arcadeText(ctx, (DANCES[this.dance] || DANCES.showoff).label.toUpperCase(), W / 2, 40, 34, '#ffd166', '#1d1530');
     this.renderBanners(ctx);
     if (this.flashA > 0) { ctx.fillStyle = `rgba(255,255,255,${this.flashA.toFixed(3)})`; ctx.fillRect(0, 0, W, H); }
+  }
+
+  /** A comic speech bubble over a fighter's head. */
+  renderBubble(ctx, f) {
+    const b = f.bubble;
+    if (!b) return;
+    const h = f.headWorld();
+    const k = b.t < 0.15 ? easeOut(b.t / 0.15) : b.t > b.dur - 0.25 ? clamp((b.dur - b.t) / 0.25, 0, 1) : 1;
+    ctx.save();
+    ctx.globalAlpha = k;
+    ctx.font = 'italic 700 17px system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif';
+    const w = ctx.measureText(b.text).width + 26, hh = 34;
+    let x = clamp(h.x - f.facing * 10 - w / 2, 8, W - w - 8), y = h.y - f.style.headR - 58;
+    ctx.translate(0, (1 - k) * 8);
+    ctx.fillStyle = '#fff'; ctx.strokeStyle = '#ff4d8d'; ctx.lineWidth = 3; ctx.lineJoin = 'round';
+    ctx.beginPath(); ctx.roundRect(x, y, w, hh, 12); ctx.fill(); ctx.stroke();
+    // the tail toward the mouth
+    const tx = clamp(h.x, x + 16, x + w - 16);
+    ctx.beginPath(); ctx.moveTo(tx - 7, y + hh - 1); ctx.lineTo(h.x, y + hh + 14); ctx.lineTo(tx + 7, y + hh - 1); ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(tx - 7, y + hh); ctx.lineTo(h.x, y + hh + 14); ctx.lineTo(tx + 7, y + hh); ctx.stroke();
+    ctx.fillStyle = '#fff'; ctx.fillRect(tx - 6, y + hh - 3, 12, 5);
+    ctx.fillStyle = '#7a1b4f'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(b.text, x + w / 2, y + hh / 2 + 1);
+    ctx.restore();
   }
 
   renderParticles(ctx) {
