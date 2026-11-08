@@ -1369,7 +1369,20 @@ const Sprites = (() => {
       const c = cfg[who];
       if (!c || !c.stand) continue;
       const scale = height / c.stand.h;
-      const d = { faceDir: c.faceDir || 1, height, stand: loadFrame(base, c.stand, scale), dance: [], frames: {} };
+      const d = { faceDir: c.faceDir || 1, height, stand: loadFrame(base, c.stand, scale), dance: [], frames: {}, rig: c.rig || null };
+      if (d.rig) {
+        // cut the striking fist (and the kicking boot) out of the photo once it has loaded
+        d.stand.img.addEventListener('load', () => {
+          const cut = (pt) => {
+            const cv = makeCanvas(pt.r * 2, pt.r * 2), cx = cv.getContext('2d');
+            cx.beginPath(); cx.arc(pt.r, pt.r, pt.r - 1, 0, TAU); cx.clip();
+            cx.drawImage(d.stand.img, pt.x - pt.r, pt.y - pt.r, pt.r * 2, pt.r * 2, 0, 0, pt.r * 2, pt.r * 2);
+            return cv;
+          };
+          d.rig.fistImg = cut(d.rig.fist);
+          if (d.rig.boot) d.rig.bootImg = cut(d.rig.boot);
+        });
+      }
       if (c.dance && c.dance.length) {
         const ds = height / c.dance[0].h;                  // the first dance frame is a standing pose
         d.dance = c.dance.map((f) => loadFrame(base, f, ds));
@@ -1386,6 +1399,60 @@ const Sprites = (() => {
     get(who) { const d = data[who]; return d && d.stand.ready ? d : null; },
   };
 })();
+
+/**
+ * Draws an animated punch or kick on top of a photo figure: the fist (or boot)
+ * cut from the photo travels from the guard position, pulls back, snaps out
+ * to full reach and returns, on a two-bone limb (upper arm + forearm, or
+ * thigh + shin) in the sleeve / trouser colour that bends at the elbow or
+ * knee and straightens on impact. Coordinates are the sprite's own (feet at
+ * the origin, the figure facing `faceDir`).
+ */
+function drawStrikeOverlay(ctx, sp, f) {
+  const rig = sp.rig, a = f.attack, t = f.stateTime;
+  if (!rig || !rig.fistImg) return;
+  const kick = a.name === 'kick' && rig.boot && rig.bootImg;
+  const sc = sp.stand.scale, dir = sp.faceDir, H = sp.height;
+  const L = (pt) => ({ x: (pt.x - sp.stand.ax) * sc, y: (pt.y - sp.stand.ay) * sc });
+  const root = L(kick ? rig.hip : rig.shoulder);
+  const rest = L(kick ? rig.boot : rig.fist);
+  const seg = kick ? H * 0.235 : H * 0.165;                       // bone lengths from the body height
+  const back = { x: root.x - dir * (kick ? 6 : 12), y: root.y + (kick ? seg * 1.1 : seg * 0.9) };
+  const reach = (kick ? 2 : 2) * seg - 2 + (a.name === 'power' ? 4 : 0);
+  const out = { x: root.x + dir * reach, y: root.y + (kick ? -4 : 6) };
+  const lerpP = (p, q, k) => ({ x: lerp(p.x, q.x, k), y: lerp(p.y, q.y, k) });
+  let pos, snap = 0;
+  if (t < a.startup) pos = lerpP(rest, back, smooth(t / a.startup));
+  else if (t < a.startup + a.active) { const k = (t - a.startup) / a.active; snap = Math.max(0, 1 - k * 2); pos = lerpP(back, out, easeOut(Math.min(1, k * 2.2))); }
+  else pos = lerpP(out, rest, smooth((t - a.startup - a.active) / a.recovery));
+  // the joint: two-bone IK, elbow hanging down / knee pointing forward-up
+  const joint = solveIK(root, pos, seg, seg);
+  const ddx = pos.x - root.x, ddy = pos.y - root.y, dl = Math.hypot(ddx, ddy) || 1;
+  const px = -ddy / dl, py = ddx / dl;                               // perpendicular to root->pos
+  const side = kick ? -1 : 1;                                        // +y side for the elbow, -y side for the knee
+  const offs = Math.sqrt(Math.max(0, seg * seg - Math.min(dl / 2, seg - 0.1) ** 2));
+  const mid = { x: (root.x + pos.x) / 2, y: (root.y + pos.y) / 2 };
+  const j1 = { x: mid.x + px * offs, y: mid.y + py * offs }, j2 = { x: mid.x - px * offs, y: mid.y - py * offs };
+  const jt = (side > 0 ? (j1.y > j2.y ? j1 : j2) : (j1.y < j2.y ? j1 : j2));
+  void joint;
+  const w0 = H * (kick ? 0.085 : 0.062), w1 = H * (kick ? 0.07 : 0.052), w2 = H * (kick ? 0.06 : 0.044);
+  const color = kick ? rig.trouser : rig.sleeve, light = kick ? rig.trouserLight : rig.sleeveLight;
+  // motion blur: ghost limbs while snapping out
+  if (snap > 0) {
+    for (let g = 1; g <= 3; g++) {
+      const gp = lerpP(back, pos, 1 - g * 0.2);
+      ctx.save(); ctx.globalAlpha = 0.2 * snap / g; ctx.lineCap = 'round'; ctx.lineWidth = w1; ctx.strokeStyle = light;
+      ctx.beginPath(); ctx.moveTo(root.x, root.y); ctx.lineTo(gp.x, gp.y); ctx.stroke(); ctx.restore();
+    }
+  }
+  drawLimb(ctx, [root, jt, pos], [w0, w1, w2], color, tint(color, -0.45), 'rgba(0,0,0,0.6)');
+  // the fist or boot from the photo
+  const img = kick ? rig.bootImg : rig.fistImg, r = (kick ? rig.boot.r : rig.fist.r) * sc * (kick ? 0.95 : 0.9);
+  ctx.save(); ctx.translate(pos.x, pos.y);
+  if (kick) ctx.rotate(dir * Math.atan2(pos.y - jt.y, Math.abs(pos.x - jt.x)) * 0.5 - dir * 0.9);
+  ctx.drawImage(img, -r, -r, r * 2, r * 2);
+  ctx.restore();
+}
 
 /**
  * Draws one sprite frame with its feet at the origin, facing +x, with an
@@ -1590,7 +1657,7 @@ class Fighter {
     if (!a.hasHit && t >= a.startup && t <= a.startup + a.active) {
       const sp = this.sprite();
       const p = sp
-        ? { x: this.x + this.facing * (a.name === 'power' ? 98 : a.name === 'kick' ? 90 : 74), y: this.y - sp.height * (a.name === 'kick' ? 0.42 : 0.62) }
+        ? { x: this.x + this.facing * (a.name === 'power' ? 112 : a.name === 'kick' ? 108 : 92), y: this.y - sp.height * (a.name === 'kick' ? 0.55 : 0.78) }
         : this.worldPoint(this.hitPoint(a.hitPoint));
       const box = opp.getHurtbox();
       if (box && circleRectHit(p.x, p.y, a.radius, box)) {
@@ -1837,12 +1904,12 @@ class Fighter {
       case 'taunt': v.sx = 1 + 0.03 * Math.sin(t * 8); v.rot = 0.03 * Math.sin(t * 8); break;
       case 'attack': {
         const a = this.attack, big = a.name === 'power';
-        if (t < a.startup) { const k = smooth(t / a.startup); v.rot = -(big ? 0.2 : 0.06) * k; v.sx = 1 - (big ? 0.08 : 0.03) * k; v.dx = -(big ? 8 : 2) * k; v.frame = fr(a.name); }
-        else if (t < a.startup + a.active) { v.frame = fr(a.name); v.rot = big ? 0.14 : 0.08; v.sx = big ? 1.12 : 1.07; v.dx = big ? 14 : 8; }
-        else { const k = 1 - smooth((t - a.startup - a.active) / a.recovery); v.frame = fr(a.name); v.rot = (big ? 0.14 : 0.08) * k; v.sx = 1 + (big ? 0.12 : 0.07) * k; v.dx = (big ? 14 : 8) * k; }
+        if (t < a.startup) { const k = smooth(t / a.startup); v.rot = -(big ? 0.16 : 0.05) * k; v.sx = 1 - (big ? 0.05 : 0.02) * k; v.dx = -(big ? 8 : 2) * k; v.frame = fr(a.name); }
+        else if (t < a.startup + a.active) { v.frame = fr(a.name); v.rot = big ? 0.12 : 0.06; v.sx = big ? 1.05 : 1.02; v.dx = big ? 16 : 8; }
+        else { const k = 1 - smooth((t - a.startup - a.active) / a.recovery); v.frame = fr(a.name); v.rot = (big ? 0.12 : 0.06) * k; v.sx = 1 + (big ? 0.05 : 0.02) * k; v.dx = (big ? 16 : 8) * k; }
         break;
       }
-      case 'hurt': { const k = 1 - t / Math.max(0.05, this.stateDur); v.frame = fr('hurt'); v.rot = -0.22 * k; v.dx = -6 * k; break; }
+      case 'hurt': { const k = 1 - t / Math.max(0.05, this.stateDur); v.frame = fr('hurt'); v.rot = -0.26 * k; v.dx = -8 * k + 2 * Math.sin(t * 70) * k; v.sx = 1 - 0.04 * k; break; }
       case 'down': { const r = lieRot(false) * smooth(Math.min(1, t / 0.3)); v.frame = fr('down'); v.rot = r; v.dy = lieDy(r); v.dx = lieDx(r); break; }
       case 'getup': { const r = lieRot(false) * (1 - smooth(Math.min(1, t / 0.5))); v.frame = fr('down'); v.rot = r; v.dy = lieDy(r); v.dx = lieDx(r); break; }
       case 'ko': {
@@ -1890,7 +1957,11 @@ class Fighter {
         ctx.fillStyle = g; ctx.beginPath(); ctx.arc(gx, gy, 18 + k * 26, 0, TAU); ctx.fill();
       }
       ctx.scale(this.facing * sp.faceDir, 1);
-      drawSpriteFrame(ctx, this.spriteView().frame, this.spriteView());
+      const view = this.spriteView();
+      drawSpriteFrame(ctx, view.frame, view);
+      if (this.state === 'attack' && !(sp.frames[this.attack.name] && sp.frames[this.attack.name].ready)) {
+        ctx.save(); ctx.translate(view.dx || 0, 0); ctx.rotate(view.rot || 0); drawStrikeOverlay(ctx, sp, this); ctx.restore();
+      }
       ctx.restore();
       if (this.isDizzy()) {
         const h = this.headWorld();
