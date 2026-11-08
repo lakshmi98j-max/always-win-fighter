@@ -13,9 +13,14 @@ window.AWF_BIRTHDAY = {
     'Happy birthday, Sakaar.',
   ],
 
-  // The big sign on the arena wall and the sign the crowd holds up.
-  arenaBanner: 'SAKAAR ALWAYS WINS',
+  // The sign the crowd holds up. (arenaBanner would replace the wall sign's text; null keeps the original.)
+  arenaBanner: null,
   crowdSign: 'HBD SAKAAR',
+
+  // Music for his victory dance. null plays the built-in Bollywood-style dance number
+  // (dhol beat, tabla fills and a shehnai-style lead, all synthesised). To use a real
+  // song you have the rights to, put the file in assets/ and set e.g. 'assets/dance.mp3'.
+  danceTrack: null,
 
   // Start screen line under the title.
   tagline: "A game where you can't lose. Just like us.",

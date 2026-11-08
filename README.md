@@ -76,7 +76,9 @@ background, side view, and run them through the cut-out script (see "Adding spri
 
 Everything personal lives in `assets/birthday.js`: his name, the message typed out at the end, the
 arena banner, the crowd's sign, the start-screen line, what the Challenger says when she trips,
-tires, whiffs or sneezes, the sweet stats on the ending screen and an optional photo for the secret
+tires, whiffs or sneezes, the sweet stats on the ending screen, the dance music (a built-in
+Bollywood-style dance number, synthesised: dhol beat, tabla fills and a shehnai-style lead; or set
+`danceTrack` to an audio file you have the rights to) and an optional photo for the secret
 screen (press **H** during the game), plus her flirty lines (speech bubbles while she circles him,
 attacks, lands a hit, gets hit, blocks or is knocked down) and her kiss move: she blows a kiss, hearts
 fly at him and "MWAH!" does 1 damage. Her flirting fills a **charm meter** under the timer; when
