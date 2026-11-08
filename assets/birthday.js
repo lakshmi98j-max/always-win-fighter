@@ -48,7 +48,16 @@ window.AWF_BIRTHDAY = {
     block: ['nice try, handsome', 'not today, love', 'I know all your moves'],
     down: ['I meant to do that', 'the floor is comfy, actually', 'just resting my eyes'],
     lowHp: ['okay okay, you win', 'you always do', "I'm not even mad"],
+    flip: ['like what you see?', "this hair doesn't flip itself", 'eyes up here, champ'],
+    jump: ['nice jump', 'show-off', 'ooh, athletic'],
+    heroBlock: ['playing hard to get?', "you can't block a kiss", 'so shy'],
+    heroIdle: ['are you just going to stand there?', "I'm right here, you know", 'take your time, handsome'],
+    lovestruck: ['gotcha', 'told you I know your moves', 'look at that face'],
+    flustered: ["oh no, he's cute", 'wait, that\'s cheating', 'do NOT do that again... please do'],
   },
+
+  // What he says back (sometimes) when she chats to him.
+  replies: ['I know.', "focus, we're fighting", 'you first', "that's my line", "stop, I'm blushing", 'after this round'],
 
   // Secret screen: press H during the game. Put a photo of the two of you in
   // assets/ and set its path here, for example 'assets/us.jpg'. With null, the

@@ -26,6 +26,7 @@ sprite is drawn in code and every sound is synthesised with the Web Audio API.
 | Jab (fast) | `J` | JAB |
 | Power punch (short wind-up, big knockback) | `K` | POW |
 | Pause | `P` or `Esc` | ❚❚ button under the timer |
+| Flirt back (birthday edition) | `L` | ♥ |
 | Start / confirm / play again | `Enter` or `Space` | tap |
 
 The **Victory dance** button on the start screen (or adding `?dance` to the URL) shows the
@@ -78,7 +79,11 @@ arena banner, the crowd's sign, the start-screen line, what the Challenger says 
 tires, whiffs or sneezes, the sweet stats on the ending screen and an optional photo for the secret
 screen (press **H** during the game), plus her flirty lines (speech bubbles while she circles him,
 attacks, lands a hit, gets hit, blocks or is knocked down) and her kiss move: she blows a kiss, hearts
-fly at him and "MWAH!" does 1 damage. The last round win ends with "HAPPY BIRTHDAY" over his real
+fly at him and "MWAH!" does 1 damage. Her flirting fills a **charm meter** under the timer; when
+it is full he is **lovestruck** for a moment (hearts round his head, she walks in for a free kiss).
+He can **flirt back** with `L` (or the heart touch button): he blows a kiss, she is **flustered**
+(stunned, 10 damage) and the meter drains. He sometimes answers her lines, and she reacts when he
+jumps, blocks or just stands there. The last round win ends with "HAPPY BIRTHDAY" over his real
 victory dance, hearts instead of confetti and the birthday song. Set `window.AWF_BIRTHDAY = null`
 in that file to get the plain game back.
 

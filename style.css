@@ -393,3 +393,5 @@ body.touch #touch-controls { display: block; }
 #secret-photo { max-height: 55vh; max-width: 90%; border-radius: 0.8em; border: 0.3em solid #ff9ecd; }
 .secret-heart { font-size: 14em; color: #ff4d8d; line-height: 1; animation: beat 1s ease-in-out infinite; text-shadow: 0 0 0.3em rgba(255, 77, 141, 0.6); }
 @keyframes beat { 0%, 100% { transform: scale(1); } 30% { transform: scale(1.12); } 60% { transform: scale(1.04); } }
+.tc-flirt { background: rgba(255, 77, 141, 0.65); width: clamp(54px, calc(var(--unit) * 7), 86px); height: clamp(54px, calc(var(--unit) * 7), 86px); grid-column: 1 / span 2; justify-self: center; }
+.controls-legend { grid-template-columns: auto auto auto auto auto auto; }

@@ -247,7 +247,7 @@ const Sound = (() => {
    3. INPUT - keyboard and touch buttons are merged into named actions
    ========================================================================== */
 const Input = (() => {
-  const ACTIONS = ['left', 'right', 'jump', 'block', 'jab', 'power', 'start', 'pause'];
+  const ACTIONS = ['left', 'right', 'jump', 'block', 'jab', 'power', 'flirt', 'start', 'pause'];
   const KEYMAP = {
     ArrowLeft: 'left', a: 'left', A: 'left',
     ArrowRight: 'right', d: 'right', D: 'right',
@@ -255,6 +255,7 @@ const Input = (() => {
     ArrowDown: 'block', s: 'block', S: 'block',
     j: 'jab', J: 'jab',
     k: 'power', K: 'power',
+    l: 'flirt', L: 'flirt',
     Enter: 'start', ' ': 'start',
     p: 'pause', P: 'pause', Escape: 'pause',
   };
@@ -936,6 +937,17 @@ const ATTACKS = {
       { t: 0.45, pose: IDLE_POSE },
     ]),
   },
+  hero_flirt: {
+    name: 'flirt', startup: 0.22, active: 0.14, recovery: 0.45,
+    damage: 10, hitstun: 1.1, knockback: 40, hitPoint: 'fistF', radius: 24, shake: 2, lunge: 0,
+    sound: 'kiss', words: ['FLUSTERED!'], unblockable: true,
+    clip: keyframes([
+      { t: 0, pose: IDLE_POSE },
+      { t: 0.18, pose: stand(72, 16, -18, { lean: 0.08, headTilt: 0.1, armF: { s: 1.5, e: 2.3 }, armB: { s: 0.8, e: 2.1 } }) },
+      { t: 0.3, pose: stand(72, 18, -18, { lean: 0.12, headTilt: 0.15, armF: { s: 1.6, e: 0.4 }, armB: { s: 0.8, e: 2.1 } }) },
+      { t: 0.81, pose: IDLE_POSE },
+    ]),
+  },
   ch_kiss: {
     name: 'kiss', startup: 0.26, active: 0.1, recovery: 0.4,
     damage: 1, hitstun: 0.1, knockback: 30, hitPoint: 'fistF', radius: 20, shake: 1, lunge: 0,
@@ -1532,6 +1544,7 @@ class Fighter {
     this.animT = Math.random() * 10;
     this.smugT = 0;
     this.bubble = null; this.sayCooldown = 0; this.chatter = rand(3, 6);
+    this.flirtCd = 0; this.flusterT = 0; this.replyIn = 0; this.idleT = 0;
     this.reset(this.isHero ? 320 : 640, this.isHero ? 1 : -1);
   }
 
@@ -1559,6 +1572,8 @@ class Fighter {
   canAct() {
     return this.onGround && (this.state === 'idle' || this.state === 'walk' || this.state === 'block' || this.state === 'taunt');
   }
+  /** Hearts instead of stars: lovestruck or flustered. */
+  isSmitten() { return this.state === 'lovestruck' || this.flusterT > 0; }
   isBlocking() { return this.state === 'block'; }
   isLying() {
     return this.state === 'down' || this.state === 'ko' || this.state === 'getup' ||
@@ -1575,6 +1590,10 @@ class Fighter {
     if (!force && (this.bubble || this.sayCooldown > 0)) return;
     this.bubble = { text: pick(BDAY.flirts[kind]), t: 0, dur: 1.9 };
     this.sayCooldown = 2.6;
+    if (!this.isHero && this.game.mode === 'fight') {
+      this.game.addCharm(kind === 'flustered' ? 0 : kind === 'flip' ? 15 : 8);
+      if ((kind === 'idle' || kind === 'heroIdle' || kind === 'attack') && Math.random() < 0.5) this.game.hero.replyIn = 0.9;
+    }
   }
 
   /** The photo sprite set for this fighter, or null when it draws the skeleton. */
@@ -1615,6 +1634,7 @@ class Fighter {
         if (this.lie === 'back-hold') return CLIPS.lieBack;
         return this.lie === 'front' ? CLIPS.fallFront : CLIPS.fall;
       case 'down': return CLIPS.fall;
+      case 'lovestruck': return CLIPS.hurt;
       default: return CLIPS[this.state] || CLIPS.idle;
     }
   }
@@ -1636,7 +1656,17 @@ class Fighter {
     this.animT += dt;
     this.smugT = Math.max(0, this.smugT - dt);
     this.sayCooldown = Math.max(0, this.sayCooldown - dt);
+    this.flirtCd = Math.max(0, this.flirtCd - dt);
+    this.flusterT = Math.max(0, this.flusterT - dt);
     if (this.bubble && (this.bubble.t += dt) > this.bubble.dur) this.bubble = null;
+    if (this.replyIn > 0 && (this.replyIn -= dt) <= 0 && BDAY && BDAY.replies && BDAY.replies.length && !this.bubble) {
+      this.bubble = { text: pick(BDAY.replies), t: 0, dur: 1.6 };
+    }
+    if (this.isHero && this.game.mode === 'fight') {                            // she teases him for standing still
+      this.idleT = this.state === 'idle' ? this.idleT + dt : 0;
+      if (this.idleT > 4.5) { this.idleT = 0; this.game.challenger.say('heroIdle'); }
+    }
+    if (this.state === 'lovestruck' && this.stateTime >= this.stateDur) this.setState('idle');
     if (!this.isHero && this.game.mode === 'fight' && this.canAct()) {       // idle chatter while circling him
       this.chatter -= dt;
       if (this.chatter <= 0) { this.chatter = rand(5, 9); this.say(this.hp <= 25 ? 'lowHp' : 'idle'); }
@@ -1716,7 +1746,7 @@ class Fighter {
     const a = this.attack, t = this.stateTime;
     // step into the punch during the active frames
     if (a.lunge && t >= a.startup * 0.5 && t < a.startup + a.active) this.vx = this.facing * a.lunge;
-    if (a.name === 'kiss' && t >= a.startup * 0.6 && Math.random() < 0.5) {      // hearts float from her lips toward him
+    if ((a.name === 'kiss' || a.name === 'flirt') && t >= a.startup * 0.6 && Math.random() < 0.5) {      // hearts float from her lips toward him
       const h = this.headWorld();
       this.game.particles.push({ type: 'heart', x: h.x + this.facing * 14, y: h.y + 4, vx: this.facing * rand(120, 220), vy: rand(-60, -10), life: 1.1, max: 1.1, size: rand(8, 13), color: pick(['#ff4d8d', '#ff9ecd']), rot: 0, spin: rand(-2, 2), g: -20, sway: rand(0, TAU) });
     }
@@ -1725,7 +1755,7 @@ class Fighter {
       if (sp) {
         // photo figures: the whole extended limb can connect, from the body out to the
         // reach of the real frame (jab 95, power punch 80 plus the lunge, kick 130)
-        const reach = a.name === 'power' ? 80 : a.name === 'kick' ? 130 : a.name === 'kiss' ? 120 : 95;
+        const reach = a.name === 'power' ? 80 : a.name === 'kick' ? 130 : a.name === 'kiss' ? 120 : a.name === 'flirt' ? 150 : 95;
         const y = this.y - sp.height * (a.name === 'kick' ? 0.55 : a.name === 'power' ? 0.7 : 0.78);
         let hitAt = null;
         for (let k = 0.25; k <= 1.001 && !hitAt; k += 0.125) {
@@ -1782,7 +1812,7 @@ class Fighter {
   /* ------------------------------------------------------- player control */
   updatePlayer(dt, input) {
     const s = this.state;
-    if (s === 'attack' || s === 'hurt' || s === 'land' || s === 'victory') return;
+    if (s === 'attack' || s === 'hurt' || s === 'land' || s === 'victory' || s === 'lovestruck') return;
     const dir = (input.held('right') ? 1 : 0) - (input.held('left') ? 1 : 0);
 
     if (!this.onGround) {                       // airborne: steer a little and air-jab
@@ -1792,9 +1822,10 @@ class Fighter {
     }
     if (input.pressed('jab')) return this.startAttack('hero_jab');
     if (input.pressed('power')) return this.startAttack('hero_power');
-    if (input.pressed('jump')) { this.vx = dir * 200; return this.jump(); }
+    if (BDAY && input.pressed('flirt') && this.flirtCd <= 0) { this.flirtCd = 2.5; return this.startAttack('hero_flirt'); }
+    if (input.pressed('jump')) { this.vx = dir * 200; if (Math.random() < 0.35) this.game.challenger.say('jump'); return this.jump(); }
     if (input.held('block')) {
-      if (s !== 'block') this.setState('block');
+      if (s !== 'block') { this.setState('block'); if (Math.random() < 0.3) this.game.challenger.say('heroBlock'); }
       this.vx = 0;
       return;
     }
@@ -1809,6 +1840,7 @@ class Fighter {
 
   /* ----------------------------------------------------------- AI control */
   updateAI(dt, opp) {
+    if (this.game.lovestruck) return;                // the lovestruck moment drives her
     if (!this.canAct()) return;
     const ai = this.ai;
     ai.misfortune -= dt;
@@ -1842,7 +1874,7 @@ class Fighter {
     if (d > 170) {
       if (r < 0.7) { ai.intent = 'approach'; ai.timer = rand(0.3, 0.8); }
       else if (r < 0.82) { ai.intent = 'wait'; ai.timer = 0.6; this.vx = (opp.x >= this.x ? 1 : -1) * 160; this.jump(); }
-      else if (r < 0.92) { ai.intent = 'wait'; ai.timer = 1.1; this.setState('taunt', 1.1); }
+      else if (r < 0.92) { ai.intent = 'wait'; ai.timer = 1.1; this.setState('taunt', 1.1); this.say('flip'); }
       else { ai.intent = 'wait'; ai.timer = rand(0.3, 0.6); }
     } else if (d > 100) {
       if (r < 0.45) { ai.intent = 'approach'; ai.timer = rand(0.2, 0.4); }
@@ -1982,10 +2014,11 @@ class Fighter {
       case 'jump': use('jump', () => { v.sy = 1.06; v.sx = 0.96; }); v.rot = 0.04; break;
       case 'land': use('floor', () => { v.sy = 0.92; v.sx = 1.07; }); break;
       case 'block': use('palms', () => { v.rot = -0.07; v.dx = -4; v.sy = 0.97; }); break;
-      case 'taunt': use('fistup', () => { v.sx = 1 + 0.03 * Math.sin(t * 8); }); v.rot = 0.03 * Math.sin(t * 8); break;
+      case 'taunt': use(this.isHero ? 'fistup' : 'overhead', () => { v.sx = 1 + 0.03 * Math.sin(t * 8); }); v.rot = 0.03 * Math.sin(t * 8); break;
+      case 'lovestruck': use('leanback', () => { v.rot = -0.15; }); v.rot += 0.06 * Math.sin(t * 9); v.sy = 1 + 0.02 * Math.sin(t * 9); break;
       case 'attack': {
         const a = this.attack, big = a.name === 'power', kick = a.name === 'kick';
-        const kiss = a.name === 'kiss';
+        const kiss = a.name === 'kiss' || a.name === 'flirt';
         const windKey = big ? 'cross' : kick ? 'knee' : kiss ? 'palm' : 'stand2', hitKey = big ? 'uppercut' : kick ? 'sidekick' : kiss ? 'palm' : 'jab';
         if (t < a.startup) {
           const k = smooth(t / a.startup);
@@ -2060,7 +2093,7 @@ class Fighter {
       ctx.scale(this.facing * sp.faceDir, 1);
       const view = this.spriteView();
       drawSpriteFrame(ctx, view.frame, view);
-      if (this.state === 'attack' && !view.real && this.attack.name !== 'kiss') {
+      if (this.state === 'attack' && !view.real && this.attack.name !== 'kiss' && this.attack.name !== 'flirt') {
         ctx.save(); ctx.translate(view.dx || 0, 0); ctx.rotate(view.rot || 0); drawStrikeOverlay(ctx, sp, this); ctx.restore();
       }
       ctx.restore();
@@ -2069,6 +2102,13 @@ class Fighter {
         for (let i = 0; i < 3; i++) {
           const a = this.animT * 5 + i * TAU / 3;
           drawStar(ctx, h.x + Math.cos(a) * 30, h.y - 12 + Math.sin(a) * 10, 7, '#ffd166', this.style.ink);
+        }
+      }
+      if (this.isSmitten()) {
+        const h = this.headWorld();
+        for (let i = 0; i < 4; i++) {
+          const a = this.animT * 4 + i * TAU / 4;
+          drawHeart(ctx, h.x + Math.cos(a) * 34, h.y - 16 + Math.sin(a) * 12, 12, i % 2 ? '#ff4d8d' : '#ff9ecd');
         }
       }
       return;
@@ -2252,6 +2292,7 @@ class Game {
     this.roundEnd = null;
     this.stats = this.freshStats();
     this.dance = 'showoff';                     // key into DANCES; set from the preview screen
+    this.charm = 0; this.lovestruck = null;     // birthday edition: her flirting fills a charm meter
     this.frame = this.frame.bind(this);
   }
 
@@ -2259,6 +2300,34 @@ class Game {
   start() { this.lastNow = performance.now(); requestAnimationFrame(this.frame); }
   setMode(m) { this.mode = m; this.modeT = 0; Screens.onMode(m); }
   notePlayerAction() { this.lastPlayerAction = this.time; }
+
+  /** Her flirting charges the charm meter; when it fills he is lovestruck for a moment. */
+  addCharm(n) {
+    if (!BDAY || this.mode !== 'fight' || this.lovestruck) return;
+    this.charm = Math.min(100, this.charm + n);
+    if (this.charm >= 100) this.startLovestruck();
+  }
+  startLovestruck() {
+    const h = this.hero, c = this.challenger;
+    if (!h.onGround || h.isLying() || c.isLying()) { this.charm = 90; return; }
+    this.lovestruck = { t: 0 };
+    h.setState('lovestruck', 1.6); h.vx = 0; h.smugT = 1.6;
+    this.banner('LOVESTRUCK!', { color: '#ff9ecd', stroke: '#7a1b4f', dur: 1.2, size: 72 });
+    Sound.play('plot');
+    for (let i = 0; i < 10; i++) this.heart(h.x + rand(-30, 30), h.y - 150 + rand(-20, 20));
+    c.say('lovestruck', true);
+  }
+  updateLovestruck(dt) {
+    const L = this.lovestruck; if (!L) return;
+    L.t += dt;
+    const h = this.hero, c = this.challenger;
+    const d = Math.abs(h.x - c.x);
+    if (L.t > 0.4 && !L.kissed && c.canAct()) {
+      if (d > 110) { c.moveToward(h, 1); }                         // she walks in for a free kiss
+      else { c.setState('idle'); c.vx = 0; c.startAttack('ch_kiss'); L.kissed = true; }
+    }
+    if (L.t > 1.7) { this.lovestruck = null; this.charm = 0; }
+  }
   playerIdle() { return this.time - this.lastPlayerAction > IDLE_PLAYER_SECONDS; }
 
   /* ------------------------------------------------------------ main loop */
@@ -2323,6 +2392,7 @@ class Game {
   }
 
   updateFight(dt) {
+    this.updateLovestruck(dt);
     this.updateFighters(dt, true);
     if (this.mode !== 'fight') return;              // a KO may just have ended the round
     this.stats.time += dt;
@@ -2378,6 +2448,7 @@ class Game {
   startRound() {
     this.hero.reset(320, 1); this.challenger.reset(640, -1);
     this.timer = ROUND_TIME; this.timeScale = 1; this.hitstop = 0; this.roundEnd = null;
+    this.charm = 0; this.lovestruck = null;
     this.particles.length = 0; this.popups.length = 0; this.banners.length = 0;
     this.lastPlayerAction = this.time;
     this.setMode('round_intro');
@@ -2472,7 +2543,7 @@ class Game {
 
   resolveHit(att, def, atk, p) {
     const dir = att.facing;
-    if (def.isBlocking() && !atk.guardBreak) {
+    if (def.isBlocking() && !atk.guardBreak && !atk.unblockable) {
       this.sparks(p.x, p.y, 8, ['#ffffff', '#9bf6ff', '#a0c4ff'], 220);
       this.popup('BLOCK', p.x, p.y - 30, { color: '#9bf6ff', size: 26 });
       Sound.play('block');
@@ -2488,7 +2559,7 @@ class Game {
     if (def.isBlocking() && atk.guardBreak) this.popup('GUARD BREAK!', p.x, p.y - 75, { color: '#ff9f1c', size: 30 });
     const dealt = this.damage(def, atk.damage);
     const big = att.isHero;
-    if (atk.name === 'kiss') for (let i = 0; i < 8; i++) this.heart(p.x + rand(-10, 10), p.y + rand(-10, 10));
+    if (atk.name === 'kiss' || atk.name === 'flirt') for (let i = 0; i < (atk.name === 'flirt' ? 16 : 8); i++) this.heart(p.x + rand(-14, 14), p.y + rand(-14, 14));
     else this.sparks(p.x, p.y, big ? (atk.guardBreak ? 26 : 14) : 5,
       big ? ['#ffd166', '#ff9f1c', '#ffffff', '#ff4d4d'] : ['#ffc6ff', '#ffffff'], big ? 340 : 160);
     this.popup(pick(atk.words), p.x + dir * 10, p.y - 45, {
@@ -2515,6 +2586,13 @@ class Game {
     } else {
       this.stats.punches++;
       if (atk.guardBreak) this.stats.power++;
+      if (atk.name === 'flirt') {                              // she is flustered, not hurt
+        this.charm = Math.max(0, this.charm - 45);
+        def.vx = dir * 40;
+        if (def.hp <= 0) def.knockOut(); else { def.setState('hurt', atk.hitstun); def.flusterT = atk.hitstun; def.say('flustered', true); }
+        if (def.hp <= 0) this.startRoundEnd('ko');
+        return;
+      }
       def.hurtBy(atk, dir);
       if (def.hp <= 0) this.startRoundEnd('ko');
     }
@@ -2696,6 +2774,17 @@ class Game {
     const tx = W / 2;
     ctx.fillStyle = '#1d1530'; ctx.fillRect(tx - 44, 8, 88, 56);
     ctx.fillStyle = '#2a1b4a'; ctx.fillRect(tx - 40, 12, 80, 48);
+    if (BDAY) {                                                   // charm meter: a heart that fills as she flirts
+      const cx = W / 2, cy = 92, k = this.charm / 100, full = this.lovestruck || this.charm >= 100;
+      ctx.save();
+      ctx.globalAlpha = 0.9;
+      ctx.fillStyle = '#1d1530'; ctx.fillRect(cx - 44, cy - 10, 88, 14);
+      ctx.fillStyle = '#5a1a3a'; ctx.fillRect(cx - 40, cy - 7, 80, 8);
+      ctx.fillStyle = full ? '#ffffff' : '#ff4d8d'; ctx.fillRect(cx - 40, cy - 7, 80 * k, 8);
+      drawHeart(ctx, cx - 52, cy - 2, 16 + (full ? 3 * Math.sin(this.time * 12) : 0), '#ff4d8d');
+      arcadeText(ctx, 'CHARM', cx + 53, cy - 3, 12, '#ff9ecd', '#1d1530', 'left', false);
+      ctx.restore();
+    }
     const secs = Math.ceil(this.timer);
     const urgent = secs <= 10 && this.mode === 'fight' && Math.floor(this.time * 4) % 2 === 0;
     arcadeText(ctx, String(secs).padStart(2, '0'), tx, 37, 40, urgent ? '#ff4d4d' : '#ffd166', '#1d1530', 'center', false);
@@ -2838,6 +2927,8 @@ const Screens = (() => {
     $('btn-start').addEventListener('click', () => { Sound.unlock(); Sound.play('ui'); if (BDAY) Sound.play('birthday', false); game.startIntro(); });
     if (BDAY) {
       if (BDAY.tagline) $('start-tagline').textContent = BDAY.tagline;
+      document.querySelector('[data-action="flirt"]').classList.remove('hidden');
+      $('legend-flirt').classList.remove('hidden'); $('legend-flirt-2').classList.remove('hidden');
       // the secret screen: H shows a photo (or a heart with the message); any key or tap closes it
       const secret = $('screen-secret');
       if (BDAY.photo) { const img = $('secret-photo'); img.src = BDAY.photo; img.classList.remove('hidden'); $('secret-heart').classList.add('hidden'); }
