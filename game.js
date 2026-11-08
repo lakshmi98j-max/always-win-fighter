@@ -1388,8 +1388,11 @@ const Sprites = (() => {
         d.dance = c.dance.map((f) => loadFrame(base, f, ds));
       }
       for (const key of ['jab', 'power', 'block', 'jump', 'hurt', 'down', 'kick', 'walk']) {
-        if (c[key]) d.frames[key] = loadFrame(base, c[key], height / c[key].h);
+        if (c[key]) d.frames[key] = loadFrame(base, c[key], height / (c[key].ref || c[key].h));
       }
+      // the move poses cut from an action grid (all share the grid's standing height as scale)
+      d.act = {};
+      if (c.act) for (const key in c.act) d.act[key] = loadFrame(base, c.act[key], height / (c.act[key].ref || c.act[key].h));
       data[who] = d;
     }
   }
@@ -1537,7 +1540,8 @@ class Fighter {
     if (sp) {
       const lying = this.isLying() || this.state === 'ko';
       const front = this.state === 'trip' || this.state === 'defeat' || (this.lie || '').startsWith('front');
-      return { x: this.x + (lying ? this.facing * sp.height * (front ? 0.42 : -0.42) : 0), y: this.y - (lying ? 30 : sp.height * 0.86) };
+      const realFallen = sp.act.fallen && sp.act.fallen.ready;
+      return { x: this.x + (lying ? this.facing * sp.height * (realFallen ? -0.3 : front ? 0.42 : -0.42) : 0), y: this.y - (lying ? (realFallen ? 55 : 30) : sp.height * 0.86) };
     }
     return this.worldPoint(this.skel.head);
   }
@@ -1888,57 +1892,79 @@ class Fighter {
    */
   spriteView() {
     const sp = this.sprite(), s = this.state, t = this.stateTime;
-    const v = { frame: sp.stand, rot: 0, sx: 1, sy: 1, dx: 0, dy: 0 };
-    const fr = (key) => (sp.frames[key] && sp.frames[key].ready ? sp.frames[key] : sp.stand);
+    const v = { frame: sp.stand, rot: 0, sx: 1, sy: 1, dx: 0, dy: 0, real: false };
+    // a real pose frame if it exists, else the standing photo (drawn with motion instead)
+    const act = (key) => (sp.act[key] && sp.act[key].ready ? sp.act[key] : null);
+    const use = (key, fallback) => { const f = act(key); if (f) { v.frame = f; v.real = true; } else if (fallback) fallback(); };
     const lieRot = (frontDown) => (frontDown ? Math.PI / 2 : -Math.PI / 2);
-    // when the body lies flat, lift it so the side that rotated below the floor rests on it
     const lieDy = (rot) => -(rot > 0 ? sp.stand.ax : sp.stand.w - sp.stand.ax) * sp.stand.scale * Math.abs(Math.sin(rot)) * 0.92;
-    // ...and slide it so the lying body is centred on the fighter's spot instead of pivoting at the feet
     const lieDx = (rot) => -Math.sin(rot) * sp.height * 0.42;
+    const lieFallback = (front, k) => { const r = lieRot(front) * k; v.rot = r; v.dy = lieDy(r); v.dx = lieDx(r); };
+    // the fallen photo pose, settling with a small bounce
+    const fallen = (k) => use('fallen', () => lieFallback(false, k)) || (v.real && (v.sy = 1 - 0.08 * Math.sin(Math.min(1, k) * Math.PI)));
     switch (s) {
       case 'idle': v.sy = 1 + 0.012 * Math.sin(this.animT * 3.2); v.sx = 1 - 0.006 * Math.sin(this.animT * 3.2); break;
-      case 'walk': { const ph = t * TAU / 0.5; v.frame = fr('walk'); v.sy = 1 + 0.025 * Math.abs(Math.sin(ph)); v.rot = 0.035 * Math.sin(ph) * (this.walkDir || 1); break; }
-      case 'jump': v.frame = fr('jump'); v.sy = 1.06; v.sx = 0.96; v.rot = 0.04; break;
-      case 'land': v.sy = 0.92; v.sx = 1.07; break;
-      case 'block': v.frame = fr('block'); v.rot = -0.07; v.dx = -4; v.sy = 0.97; break;
-      case 'taunt': v.sx = 1 + 0.03 * Math.sin(t * 8); v.rot = 0.03 * Math.sin(t * 8); break;
+      case 'walk': { const ph = t * TAU / 0.5; v.sy = 1 + 0.025 * Math.abs(Math.sin(ph)); v.rot = 0.035 * Math.sin(ph) * (this.walkDir || 1); break; }
+      case 'jump': use('jump', () => { v.sy = 1.06; v.sx = 0.96; }); v.rot = 0.04; break;
+      case 'land': use('floor', () => { v.sy = 0.92; v.sx = 1.07; }); break;
+      case 'block': use('palms', () => { v.rot = -0.07; v.dx = -4; v.sy = 0.97; }); break;
+      case 'taunt': use('fistup', () => { v.sx = 1 + 0.03 * Math.sin(t * 8); }); v.rot = 0.03 * Math.sin(t * 8); break;
       case 'attack': {
-        const a = this.attack, big = a.name === 'power';
-        if (t < a.startup) { const k = smooth(t / a.startup); v.rot = -(big ? 0.16 : 0.05) * k; v.sx = 1 - (big ? 0.05 : 0.02) * k; v.dx = -(big ? 8 : 2) * k; v.frame = fr(a.name); }
-        else if (t < a.startup + a.active) { v.frame = fr(a.name); v.rot = big ? 0.12 : 0.06; v.sx = big ? 1.05 : 1.02; v.dx = big ? 16 : 8; }
-        else { const k = 1 - smooth((t - a.startup - a.active) / a.recovery); v.frame = fr(a.name); v.rot = (big ? 0.12 : 0.06) * k; v.sx = 1 + (big ? 0.05 : 0.02) * k; v.dx = (big ? 16 : 8) * k; }
+        const a = this.attack, big = a.name === 'power', kick = a.name === 'kick';
+        const windKey = big ? 'cross' : kick ? 'knee' : 'stand2', hitKey = big ? 'uppercut' : kick ? 'sidekick' : 'jab';
+        if (t < a.startup) {
+          const k = smooth(t / a.startup);
+          use(windKey, () => { v.rot = -(big ? 0.16 : 0.05) * k; v.sx = 1 - (big ? 0.05 : 0.02) * k; });
+          v.dx = -(big ? 8 : 2) * k;
+        } else if (t < a.startup + a.active) {
+          use(hitKey, () => { v.rot = big ? 0.12 : 0.06; v.sx = big ? 1.05 : 1.02; });
+          v.dx = big ? 16 : 8;
+        } else {
+          const k = 1 - smooth((t - a.startup - a.active) / a.recovery);
+          use(hitKey, () => { v.rot = (big ? 0.12 : 0.06) * k; v.sx = 1 + (big ? 0.05 : 0.02) * k; });
+          v.dx = (big ? 16 : 8) * k;
+          if (v.real && k < 0.35) { v.frame = sp.stand; }       // settle back into the stance
+        }
         break;
       }
-      case 'hurt': { const k = 1 - t / Math.max(0.05, this.stateDur); v.frame = fr('hurt'); v.rot = -0.26 * k; v.dx = -8 * k + 2 * Math.sin(t * 70) * k; v.sx = 1 - 0.04 * k; break; }
-      case 'down': { const r = lieRot(false) * smooth(Math.min(1, t / 0.3)); v.frame = fr('down'); v.rot = r; v.dy = lieDy(r); v.dx = lieDx(r); break; }
-      case 'getup': { const r = lieRot(false) * (1 - smooth(Math.min(1, t / 0.5))); v.frame = fr('down'); v.rot = r; v.dy = lieDy(r); v.dx = lieDx(r); break; }
+      case 'hurt': { const k = 1 - t / Math.max(0.05, this.stateDur); use('leanback', () => { v.rot = -0.26 * k; v.sx = 1 - 0.04 * k; }); v.dx = -8 * k + 2 * Math.sin(t * 70) * k; break; }
+      case 'down': fallen(t / 0.3); break;
+      case 'getup': { if (t < 0.3) use('floor', () => lieFallback(false, 1 - smooth(t / 0.5))); else use('squat', () => lieFallback(false, 1 - smooth(t / 0.5))); break; }
       case 'ko': {
         const front = this.lie === 'front' || this.lie === 'front-hold';
-        const k = this.lie.endsWith('hold') ? 1 : smooth(Math.min(1, t / 0.35));
-        const r = lieRot(front) * k; v.frame = fr('down'); v.rot = r; v.dy = lieDy(r); v.dx = lieDx(r); break;
+        const k = this.lie.endsWith('hold') ? 1 : Math.min(1, t / 0.35);
+        use('fallen', () => lieFallback(front, smooth(k)));
+        if (v.real && k < 1) v.sy = 1 - 0.1 * Math.sin(k * Math.PI);
+        break;
       }
-      case 'defeat': { const r = lieRot(true) * smooth(clamp((t - 0.6) / 0.8, 0, 1)); v.rot = 0.3 * smooth(Math.min(1, t / 0.5)) * (1 - clamp((t - 0.6) / 0.8, 0, 1)) + r; v.dy = lieDy(r); v.dx = lieDx(r); break; }
+      case 'defeat': {
+        if (t < 0.6) use('leanback', () => { v.rot = 0.3 * smooth(t / 0.5); });
+        else if (t < 1.1) use('floor', () => lieFallback(true, smooth((t - 0.6) / 0.8)));
+        else use('fallen', () => lieFallback(true, 1));
+        break;
+      }
       case 'trip': {
         if (t < 0.5) { v.rot = 0.14 + 0.05 * Math.sin(t * 30); v.sy = 1 + 0.03 * Math.abs(Math.sin(t * 15)); }
-        else if (t < 0.75) v.rot = 0.14 + 0.3 * smooth((t - 0.5) / 0.25);
-        else if (t < 2.1) { const r = lieRot(true) * smooth(clamp((t - 0.75) / 0.3, 0, 1)); v.rot = r < 0.44 ? 0.44 : r; v.dy = lieDy(v.rot); v.dx = lieDx(v.rot); }
-        else { const r = lieRot(true) * (1 - smooth(clamp((t - 2.1) / 0.5, 0, 1))); v.rot = r; v.dy = lieDy(r); v.dx = lieDx(r); }
+        else if (t < 0.75) use('lunge', () => { v.rot = 0.14 + 0.3 * smooth((t - 0.5) / 0.25); });
+        else if (t < 2.1) use('fallen', () => { const r = lieRot(true) * smooth(clamp((t - 0.75) / 0.3, 0, 1)); v.rot = r < 0.44 ? 0.44 : r; v.dy = lieDy(v.rot); v.dx = lieDx(v.rot); });
+        else if (t < 2.4) use('floor', () => lieFallback(true, 1 - smooth((t - 2.1) / 0.5)));
+        else use('squat', () => lieFallback(true, 1 - smooth((t - 2.1) / 0.5)));
         break;
       }
-      case 'tired': v.rot = 0.32 + 0.05 * Math.sin(t * 9); v.sy = 0.95; break;
+      case 'tired': use('squat', () => { v.rot = 0.32 + 0.05 * Math.sin(t * 9); v.sy = 0.95; }); v.sy *= 1 + 0.02 * Math.sin(t * 9); break;
       case 'whiff':
-        if (t < 0.45) v.rot = -0.25 * smooth(t / 0.4);
-        else if (t < 0.65) { v.rot = 0.4; v.dx = 14; v.sx = 1.1; }
-        else v.rot = 0.16 * Math.sin(t * 8);
+        if (t < 0.45) use('cross', () => { v.rot = -0.25 * smooth(t / 0.4); });
+        else if (t < 0.65) { use('punchfront', () => { v.rot = 0.4; v.sx = 1.1; }); v.dx = 14; }
+        else { use('leanback', () => {}); v.rot = 0.16 * Math.sin(t * 8); }
         break;
       case 'sneeze':
-        if (t < 0.55) v.rot = -0.12 - 0.12 * smooth(t / 0.55);
-        else if (t < 0.7) { v.rot = 0.35; v.dx = 6; }
-        else v.rot = 0.35 * (1 - smooth((t - 0.7) / 0.5));
+        if (t < 0.55) use('leanback', () => { v.rot = -0.12 - 0.12 * smooth(t / 0.55); });
+        else if (t < 0.7) { use('palm', () => { v.rot = 0.35; }); v.dx = 6; }
+        else { use('stand2', () => { v.rot = 0.35 * (1 - smooth((t - 0.7) / 0.5)); }); }
         break;
       case 'victory':
-        if (sp.dance.length && t >= 0.8) { v.frame = sp.dance[Math.floor((t - 0.8) * 8) % sp.dance.length]; }
-        else { v.sy = 1 + 0.04 * Math.max(0, Math.sin(t * 7)); }
+        if (sp.dance.length && t >= 0.8) { v.frame = sp.dance[Math.floor((t - 0.8) * 8) % sp.dance.length]; v.real = true; }
+        else use('fistup', () => { v.sy = 1 + 0.04 * Math.max(0, Math.sin(t * 7)); });
         break;
       default: break;
     }
@@ -1959,7 +1985,7 @@ class Fighter {
       ctx.scale(this.facing * sp.faceDir, 1);
       const view = this.spriteView();
       drawSpriteFrame(ctx, view.frame, view);
-      if (this.state === 'attack' && !(sp.frames[this.attack.name] && sp.frames[this.attack.name].ready)) {
+      if (this.state === 'attack' && !view.real) {
         ctx.save(); ctx.translate(view.dx || 0, 0); ctx.rotate(view.rot || 0); drawStrikeOverlay(ctx, sp, this); ctx.restore();
       }
       ctx.restore();
@@ -1999,7 +2025,7 @@ class Fighter {
   drawShadow(ctx) {
     const air = clamp((FLOOR_Y - this.y) / 400, 0, 0.8);
     ctx.fillStyle = `rgba(0,0,0,${0.35 - air * 0.3})`;
-    const lying = Math.abs(this.pose.bodyAngle) > 1 || (this.sprite() && (this.isLying() || this.state === 'ko'));
+    const lying = Math.abs(this.pose.bodyAngle) > 1 || (this.sprite() && (this.isLying() || this.state === 'ko' || this.state === 'tired'));
     ctx.beginPath(); ctx.ellipse(this.x, FLOOR_Y + 5, (lying ? 80 : 42) * (1 - air), 8, 0, 0, TAU); ctx.fill();
   }
 }

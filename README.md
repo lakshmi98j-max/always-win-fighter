@@ -39,11 +39,13 @@ bigger arena.
 
 ### The fighters
 
-This copy uses **real photo figures**: full-body cut-outs in `assets/sprites/` (a standing pose for
-each fighter and 20 dance frames for the Hero), listed in `assets/sprites/sprites.js`. The whole
-figure leans, lunges, falls and hops for moves that have no dedicated frame; the victory dance plays
-the real frames. The HUD portraits use `assets/faces/`. Remove `sprites.js` from `index.html` (or
-empty it) to go back to the drawn fighters.
+This copy uses **real photo figures**: full-body cut-outs in `assets/sprites/` listed in
+`assets/sprites/sprites.js`. Each fighter has a standing pose plus 20 move poses (punches, kicks,
+blocks, the hit reaction, crouches, the fallen pose, a jump and a victory pose); the Hero also has
+20 victory-dance frames. Every move plays its real frame, with the whole figure lunging, leaning or
+settling in between; a move without a frame falls back to the standing photo with paper-doll limbs.
+The HUD portraits use `assets/faces/`. Remove `sprites.js` from `index.html` (or empty it) to go
+back to the drawn fighters.
 
 To add more real poses, generate images of the same person in the same outfit on a plain white
 background, side view, and run them through the cut-out script (see "Adding sprite poses" below).
@@ -100,13 +102,16 @@ A photo uploaded by a player always takes priority over these files.
 
 ## Adding sprite poses
 
-`assets/sprites/sprites.js` describes each frame: the image, its size and the anchor (`ax`, `ay`:
-the horizontal centre of the feet and the bottom of the feet). Besides `stand` and `dance`, a
-fighter can have `jab`, `power`, `kick`, `block`, `jump`, `hurt`, `down` and `walk` frames; any
-that exist are used for that move, the rest fall back to the standing pose with motion. Generate
-the poses on a plain white background (a grid of poses in one image works), cut the background
-out, and add entries with the measured anchors. `faceDir` is the direction the figure faces in
-its image (1 = right, -1 = left).
+`assets/sprites/sprites.js` describes each frame: the image, its size, the anchor (`ax`, `ay`:
+the horizontal centre of the feet and the bottom of the feet) and `ref`, the standing height of
+the grid it was cut from, so all frames of one grid share a scale. The `act` poses are keyed
+`stand2`, `jab`, `punchfront`, `cross`, `uppercut`, `overhead`, `lunge`, `crouchguard`, `squat`,
+`leanback`, `kneeup`, `sidekick`, `highkick`, `knee`, `fallen`, `palm`, `jump`, `floor`, `palms`
+and `fistup`; the game maps its states onto them (a jab uses `jab`, the power punch winds up with
+`cross` and lands with `uppercut`, a kick chambers with `knee` and lands with `sidekick`, hits use
+`leanback`, blocks `palms`, knockdowns `fallen`, and so on). Generate the poses on a plain white
+background as a 5 x 4 grid in that order, cut them out, and add the entries. `faceDir` is the
+direction the figure faces in its images (1 = right, -1 = left).
 
 ## Run it
 
