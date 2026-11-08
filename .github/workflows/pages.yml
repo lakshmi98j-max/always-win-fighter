@@ -24,6 +24,9 @@ jobs:
       - name: Check out the repo
         uses: actions/checkout@v4
 
+      - name: Stamp the build id into the page (cache-busting for scripts and styles)
+        run: sed -i "s/?v=BUILD/?v=${GITHUB_SHA::8}/g" index.html
+
       - name: Set up Pages (enables Pages for the repo if it is not on yet)
         uses: actions/configure-pages@v5
         with:
