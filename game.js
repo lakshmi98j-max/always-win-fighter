@@ -2775,7 +2775,7 @@ class Game {
     ctx.fillStyle = '#1d1530'; ctx.fillRect(tx - 44, 8, 88, 56);
     ctx.fillStyle = '#2a1b4a'; ctx.fillRect(tx - 40, 12, 80, 48);
     if (BDAY) {                                                   // charm meter: a heart that fills as she flirts
-      const cx = W / 2, cy = 92, k = this.charm / 100, full = this.lovestruck || this.charm >= 100;
+      const cx = W / 2, cy = 112, k = this.charm / 100, full = this.lovestruck || this.charm >= 100;
       ctx.save();
       ctx.globalAlpha = 0.9;
       ctx.fillStyle = '#1d1530'; ctx.fillRect(cx - 44, cy - 10, 88, 14);
