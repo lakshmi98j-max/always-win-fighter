@@ -1659,14 +1659,24 @@ class Fighter {
     // step into the punch during the active frames
     if (a.lunge && t >= a.startup * 0.5 && t < a.startup + a.active) this.vx = this.facing * a.lunge;
     if (!a.hasHit && t >= a.startup && t <= a.startup + a.active) {
-      const sp = this.sprite();
-      const p = sp
-        ? { x: this.x + this.facing * (a.name === 'power' ? 112 : a.name === 'kick' ? 108 : 92), y: this.y - sp.height * (a.name === 'kick' ? 0.55 : 0.78) }
-        : this.worldPoint(this.hitPoint(a.hitPoint));
-      const box = opp.getHurtbox();
-      if (box && circleRectHit(p.x, p.y, a.radius, box)) {
-        a.hasHit = true;
-        this.game.resolveHit(this, opp, a, p);
+      const sp = this.sprite(), box = opp.getHurtbox();
+      if (sp) {
+        // photo figures: the whole extended limb can connect, from the body out to the
+        // reach of the real frame (jab 95, power punch 80 plus the lunge, kick 130)
+        const reach = a.name === 'power' ? 80 : a.name === 'kick' ? 130 : 95;
+        const y = this.y - sp.height * (a.name === 'kick' ? 0.55 : a.name === 'power' ? 0.7 : 0.78);
+        let hitAt = null;
+        for (let k = 0.25; k <= 1.001 && !hitAt; k += 0.125) {
+          const px = this.x + this.facing * reach * k;
+          if (box && circleRectHit(px, y, a.radius, box)) hitAt = { x: px, y };
+        }
+        if (hitAt) { a.hasHit = true; this.game.resolveHit(this, opp, a, { x: this.x + this.facing * reach, y }); }
+      } else {
+        const p = this.worldPoint(this.hitPoint(a.hitPoint));
+        if (box && circleRectHit(p.x, p.y, a.radius, box)) {
+          a.hasHit = true;
+          this.game.resolveHit(this, opp, a, p);
+        }
       }
     }
     if (t >= this.stateDur) {
